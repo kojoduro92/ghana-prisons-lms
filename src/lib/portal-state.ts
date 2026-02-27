@@ -1,7 +1,14 @@
 "use client";
 
-import type { AttendanceEvent, InmateProfile, UserSession, VerificationAttempt } from "@/types/domain";
-import { inmates as seededInmates } from "@/lib/seed-data";
+import type {
+  AttendanceEvent,
+  InmateProfile,
+  ReportRecord,
+  ReportType,
+  UserSession,
+  VerificationAttempt,
+} from "@/types/domain";
+import { inmates as seededInmates, reports as seededReports } from "@/lib/seed-data";
 import { STORAGE_KEYS, browserStorage } from "@/lib/storage";
 
 export function getInmatesState(): InmateProfile[] {
@@ -89,4 +96,35 @@ export function summarizeAttendance(events: AttendanceEvent[]): {
   const completionRate = entries > 0 ? Math.round((Math.min(entries, exits) / entries) * 100) : 0;
 
   return { entries, exits, completionRate };
+}
+
+export function getReportsState(): ReportRecord[] {
+  const stored = browserStorage.loadState<ReportRecord[]>(STORAGE_KEYS.reports);
+
+  if (stored && stored.length > 0) {
+    return stored;
+  }
+
+  browserStorage.saveState(STORAGE_KEYS.reports, seededReports);
+  return seededReports;
+}
+
+export function addReportRecord(
+  type: ReportType,
+  generatedBy: string,
+  options?: { scopeStudentId?: string; rowCount?: number },
+): ReportRecord[] {
+  const current = getReportsState();
+  const nextRecord: ReportRecord = {
+    id: `REP-${String(current.length + 1).padStart(3, "0")}`,
+    type,
+    generatedAt: new Date().toISOString(),
+    generatedBy,
+    scopeStudentId: options?.scopeStudentId,
+    rowCount: options?.rowCount,
+  };
+
+  const next = [nextRecord, ...current].slice(0, 200);
+  browserStorage.saveState(STORAGE_KEYS.reports, next);
+  return next;
 }

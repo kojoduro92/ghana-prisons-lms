@@ -1,19 +1,24 @@
 "use client";
 
-import { useMemo } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ProgressBar } from "@/components/progress-bar";
 import { RoleShell } from "@/components/role-shell";
-import { getInmatesState } from "@/lib/portal-state";
-import { appMeta, enrollments, reports, topRatedCourses } from "@/lib/seed-data";
+import { getInmatesState, getReportsState } from "@/lib/portal-state";
+import { appMeta, enrollments, topRatedCourses } from "@/lib/seed-data";
 
 export default function InmateProfilePage() {
   const params = useParams<{ studentId: string }>();
   const studentId = decodeURIComponent(params.studentId);
   const inmates = useMemo(() => getInmatesState(), []);
+  const [reportHistory] = useState(getReportsState);
 
   const inmate = inmates.find((entry) => entry.id === studentId);
   const inmateEnrollments = enrollments.filter((entry) => entry.studentId === studentId);
+  const visibleReports = reportHistory.filter(
+    (record) => !record.scopeStudentId || record.scopeStudentId === studentId,
+  );
 
   if (!inmate) {
     return (
@@ -54,22 +59,27 @@ export default function InmateProfilePage() {
         <div className="panel" style={{ padding: 12 }}>
           <h3 style={{ marginBottom: 10 }}>Reports & Actions</h3>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <button type="button" className="button-primary">
+            <Link href={`/admin/reports?type=performance&studentId=${inmate.id}`} className="button-primary">
               Generate Report
-            </button>
-            <button type="button" className="button-soft">
+            </Link>
+            <Link href={`/admin/reports?type=attendance&studentId=${inmate.id}`} className="button-soft">
               Export Data
-            </button>
-            <button type="button" className="button-soft">
+            </Link>
+            <Link href="/admin/reports?type=operational-summary" className="button-soft">
               Manage Records
-            </button>
+            </Link>
           </div>
           <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
-            {reports.map((record) => (
+            {visibleReports.map((record) => (
               <p key={record.id} className="quick-info" style={{ margin: 0 }}>
                 {record.id} - {record.type} ({new Date(record.generatedAt).toLocaleDateString("en-US")})
               </p>
             ))}
+            {visibleReports.length === 0 ? (
+              <p className="quick-info" style={{ margin: 0 }}>
+                No generated reports yet for this inmate scope.
+              </p>
+            ) : null}
           </div>
         </div>
       </section>

@@ -76,11 +76,15 @@ export interface ManagementAnalyticsSnapshot {
   aiForecasts: Array<{ label: string; value: string; confidence: string }>;
 }
 
+export type ReportType = "attendance" | "performance" | "course-effectiveness" | "operational-summary";
+
 export interface ReportRecord {
   id: string;
-  type: "attendance" | "performance" | "course-effectiveness" | "operational-summary";
+  type: ReportType;
   generatedAt: string;
   generatedBy: string;
+  scopeStudentId?: string;
+  rowCount?: number;
 }
 
 export interface StorageAdapter {

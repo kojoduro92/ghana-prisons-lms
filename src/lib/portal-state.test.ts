@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { inmates as seededInmates } from "@/lib/seed-data";
 import {
   addAttendanceEvent,
+  addReportRecord,
   addOrUpdateInmate,
   createAttendanceEvent,
   createEntryEvent,
   createExitEvent,
   getAttendanceEventsState,
   getInmatesState,
+  getReportsState,
   summarizeAttendance,
 } from "@/lib/portal-state";
 
@@ -84,5 +86,17 @@ describe("portal state", () => {
     expect(event.type).toBe("entry");
     expect(event.verifiedBy).toBe("fingerprint");
     expect(event.studentId).toBe("GP-77777");
+  });
+
+  it("adds report metadata records to local history", () => {
+    const next = addReportRecord("attendance", "Admin Officer", {
+      scopeStudentId: "GP-10234",
+      rowCount: 5,
+    });
+
+    const history = getReportsState();
+    expect(next[0].type).toBe("attendance");
+    expect(history[0].scopeStudentId).toBe("GP-10234");
+    expect(history[0].rowCount).toBe(5);
   });
 });
