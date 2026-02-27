@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { roleHomePath } from "@/lib/auth";
-import { getSessionFromBrowser } from "@/lib/auth-client";
+import { useAppShell } from "@/lib/app-shell";
 import { formatDateTime } from "@/lib/format";
 import { addAttendanceEvent, addAuditEvent, createEntryEvent } from "@/lib/portal-state";
 import { STORAGE_KEYS, browserStorage } from "@/lib/storage";
@@ -12,10 +12,9 @@ import type { VerificationAttempt } from "@/types/domain";
 
 export default function VerificationPage() {
   const router = useRouter();
+  const { session } = useAppShell();
   const [method, setMethod] = useState<VerificationAttempt["method"]>("fingerprint");
   const [result, setResult] = useState<VerificationAttempt["result"] | null>(null);
-
-  const session = useMemo(() => getSessionFromBrowser(), []);
   const [logs, setLogs] = useState<VerificationAttempt[]>(
     () => browserStorage.loadState<VerificationAttempt[]>(STORAGE_KEYS.verificationLogs) ?? [],
   );
@@ -54,6 +53,11 @@ export default function VerificationPage() {
         <p className="quick-info" style={{ marginBottom: 16 }}>
           Identity verification required before system access.
         </p>
+        {!session ? (
+          <p className="status-bad" style={{ marginBottom: 12 }}>
+            Session not found. Please sign in again to continue.
+          </p>
+        ) : null}
 
         <div className="grid-2">
           <button
@@ -99,7 +103,7 @@ export default function VerificationPage() {
           <button
             type="button"
             className="button-primary"
-            disabled={result !== "success"}
+            disabled={result !== "success" || !session}
             onClick={() => router.push(continuePath)}
           >
             Continue to Portal

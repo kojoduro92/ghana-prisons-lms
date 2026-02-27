@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ProgressBar } from "@/components/progress-bar";
 import { RoleShell } from "@/components/role-shell";
+import { useAppShell } from "@/lib/app-shell";
 import {
   addAuditEvent,
   getCertificatesForStudent,
@@ -20,6 +21,7 @@ import { appMeta } from "@/lib/seed-data";
 export default function InmateProfilePage() {
   const params = useParams<{ studentId: string }>();
   const studentId = decodeURIComponent(params.studentId);
+  const { setSelectedInmateId } = useAppShell();
 
   const inmates = useMemo(() => getInmatesState(), []);
   const [reportHistory] = useState(getReportsState);
@@ -32,6 +34,10 @@ export default function InmateProfilePage() {
   const visibleReports = reportHistory.filter(
     (record) => !record.scopeStudentId || record.scopeStudentId === studentId,
   );
+
+  useEffect(() => {
+    setSelectedInmateId(studentId);
+  }, [setSelectedInmateId, studentId]);
 
   function handleIssueCertificate(courseId: string): void {
     if (!inmate) return;

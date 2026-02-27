@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { RoleShell } from "@/components/role-shell";
+import { useAppShell } from "@/lib/app-shell";
 import { formatDateTime } from "@/lib/format";
 import {
   addAuditEvent,
@@ -16,6 +17,7 @@ import { appMeta, enrollments } from "@/lib/seed-data";
 import type { ReportType } from "@/types/domain";
 
 export default function ReportsWorkspacePage() {
+  const { selectedInmateId } = useAppShell();
   const initialType = useMemo<ReportType>(() => {
     if (typeof window === "undefined") return "attendance";
     const queryType = new URLSearchParams(window.location.search).get("type");
@@ -30,13 +32,13 @@ export default function ReportsWorkspacePage() {
     return "attendance";
   }, []);
 
-  const initialStudent = useMemo(() => {
+  const queryStudentId = useMemo(() => {
     if (typeof window === "undefined") return "";
     return new URLSearchParams(window.location.search).get("studentId") ?? "";
   }, []);
 
   const [reportType, setReportType] = useState<ReportType>(initialType);
-  const [scopeStudentId, setScopeStudentId] = useState(initialStudent);
+  const [scopeStudentId, setScopeStudentId] = useState(() => queryStudentId || selectedInmateId || "");
   const [reportRows, setReportRows] = useState<ReportRow[]>([]);
   const [reports, setReports] = useState(getReportsState);
 

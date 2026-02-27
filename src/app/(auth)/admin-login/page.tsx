@@ -3,12 +3,13 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSessionFromCredential, findDemoCredential, roleHomePath } from "@/lib/auth";
-import { persistSession } from "@/lib/auth-client";
+import { useAppShell } from "@/lib/app-shell";
 import { addAuditEvent } from "@/lib/portal-state";
 import { appMeta } from "@/lib/seed-data";
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const { session, setActiveSession, signOut } = useAppShell();
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("Prison1234");
   const [error, setError] = useState<string | null>(null);
@@ -16,6 +17,10 @@ export default function AdminLoginPage() {
   const nextPath = useMemo(() => {
     if (typeof window === "undefined") return null;
     return new URLSearchParams(window.location.search).get("next");
+  }, []);
+  const reason = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("reason");
   }, []);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -33,19 +38,21 @@ export default function AdminLoginPage() {
       return;
     }
 
-    const session = createSessionFromCredential(credential);
-    persistSession(session);
+    const newSession = createSessionFromCredential(credential);
+    setActiveSession(newSession);
     addAuditEvent({
       action: "login-success",
-      actor: session.displayName,
+      actor: newSession.displayName,
       result: "success",
-      target: session.role,
+      target: newSession.role,
       details: "Role session established",
     });
 
     const destination = nextPath || roleHomePath(credential.role);
     router.push(`/verify-identity?next=${encodeURIComponent(destination)}`);
   }
+
+  const resumePath = session ? nextPath || roleHomePath(session.role) : null;
 
   return (
     <div className="portal-root" style={{ display: "grid", placeItems: "center" }}>
@@ -57,6 +64,29 @@ export default function AdminLoginPage() {
         <p className="quick-info" style={{ textAlign: "center", marginBottom: 18 }}>
           Secure Admin and Role Access
         </p>
+
+        {session && resumePath ? (
+          <div className="panel" style={{ marginBottom: 12, padding: 12 }}>
+            <p style={{ margin: "0 0 8px", fontWeight: 600 }}>Active session detected: {session.displayName}</p>
+            <div className="inline-row" style={{ justifyContent: "flex-start" }}>
+              <button
+                type="button"
+                className="button-primary"
+                onClick={() => router.push(`/verify-identity?next=${encodeURIComponent(resumePath)}`)}
+              >
+                Continue Session
+              </button>
+              <button type="button" className="button-soft" onClick={() => signOut("/admin-login")}>
+                Use Different Account
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {reason === "role" ? (
+          <p className="status-bad" style={{ marginBottom: 12 }}>
+            Requested page needs a different role. Sign in with the correct account to continue.
+          </p>
+        ) : null}
 
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
           <label>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CourseCard } from "@/components/course-card";
 import { RoleShell } from "@/components/role-shell";
-import { getSessionFromBrowser } from "@/lib/auth-client";
+import { useAppShell } from "@/lib/app-shell";
 import {
   addAuditEvent,
   enrollStudentInCourse,
@@ -14,7 +14,7 @@ import {
 import { appMeta } from "@/lib/seed-data";
 
 export default function InmateCoursesPage() {
-  const session = useMemo(() => getSessionFromBrowser(), []);
+  const { session } = useAppShell();
   const studentId = session?.studentId ?? "GP-10234";
   const actor = session?.displayName ?? studentId;
 

@@ -114,6 +114,40 @@ a {
   background: rgba(255, 255, 255, 0.22);
 }
 
+.chip-button-active {
+  background: rgba(255, 255, 255, 0.34);
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+.top-nav-role-switch {
+  display: flex;
+  gap: 6px;
+}
+
+.role-nav {
+  max-width: 1280px;
+  margin: 0 auto 18px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.role-nav-link {
+  border-radius: 10px;
+  border: 1px solid #cbb39b;
+  background: #fdf9f4;
+  color: #4e2f1c;
+  padding: 8px 12px;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.role-nav-link-active {
+  border-color: #8f613f;
+  background: linear-gradient(120deg, #8a542f, #ba875c);
+  color: #fff7eb;
+}
+
 .security-badge {
   background: rgba(99, 57, 30, 0.85);
   color: #fff0da;
@@ -460,5 +494,10 @@ a {
 
   .top-nav {
     padding: 12px;
+  }
+
+  .top-nav-role-switch {
+    width: 100%;
+    justify-content: flex-end;
   }
 }

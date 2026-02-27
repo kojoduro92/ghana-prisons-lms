@@ -25,17 +25,17 @@ test("admin smoke flow", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Facility Entry / Exit Events" })).toBeVisible();
 
   await page.goto("/admin/dashboard");
-  await page.getByRole("link", { name: "Courses" }).click();
+  await page.getByLabel("Portal sections").getByRole("link", { name: "Courses" }).click();
   await expect(page).toHaveURL(/\/admin\/courses/);
   await expect(page.getByRole("heading", { name: "Create Course" })).toBeVisible();
 
   await page.goto("/admin/dashboard");
-  await page.getByRole("link", { name: "Security" }).click();
+  await page.getByLabel("Portal sections").getByRole("link", { name: "Security" }).click();
   await expect(page).toHaveURL(/\/admin\/security/);
   await expect(page.getByRole("heading", { name: "Security Event Log" })).toBeVisible();
 
   await page.goto("/admin/dashboard");
-  await page.getByRole("link", { name: "Reports" }).click();
+  await page.getByLabel("Portal sections").getByRole("link", { name: "Reports" }).click();
   await expect(page).toHaveURL(/\/admin\/reports/);
   await expect(page.getByRole("heading", { name: "Generate / Export Reports" })).toBeVisible();
 

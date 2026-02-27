@@ -5,13 +5,14 @@ import { useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { RoleShell } from "@/components/role-shell";
 import { StatCard } from "@/components/stat-card";
+import { useAppShell } from "@/lib/app-shell";
 import { ChartCard } from "@/components/chart-card";
 import { appMeta, adminStats, enrollmentDistribution } from "@/lib/seed-data";
 import { formatDateTime } from "@/lib/format";
 import { getAttendanceEventsState, getInmatesState } from "@/lib/portal-state";
-import { STORAGE_KEYS, browserStorage } from "@/lib/storage";
 
 export default function AdminDashboardPage() {
+  const { setSelectedInmateId } = useAppShell();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "Enrolled" | "Pending">("all");
   const [inmateRows] = useState(getInmatesState);
@@ -144,7 +145,7 @@ export default function AdminDashboardPage() {
                 <Link
                   href={`/admin/inmates/${row.id}`}
                   className="button-soft"
-                  onClick={() => browserStorage.saveState(STORAGE_KEYS.selectedInmate, row.id)}
+                  onClick={() => setSelectedInmateId(row.id)}
                 >
                   View Profile
                 </Link>

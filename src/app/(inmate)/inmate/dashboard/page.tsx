@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { CourseCard } from "@/components/course-card";
 import { ProgressBar } from "@/components/progress-bar";
 import { ProgressDonut } from "@/components/progress-donut";
 import { RoleShell } from "@/components/role-shell";
 import { ChartCard } from "@/components/chart-card";
-import { getSessionFromBrowser } from "@/lib/auth-client";
+import { useAppShell } from "@/lib/app-shell";
 import { formatDateTime } from "@/lib/format";
 import {
   addAttendanceEvent,
@@ -23,7 +23,7 @@ import { appMeta, inmateGoals, progressSnapshots } from "@/lib/seed-data";
 import type { AttendanceEvent } from "@/types/domain";
 
 export default function InmateDashboardPage() {
-  const session = useMemo(() => getSessionFromBrowser(), []);
+  const { session } = useAppShell();
   const snapshot = progressSnapshots[0];
   const studentId = session?.studentId ?? snapshot.studentId;
   const userName = session?.displayName ?? "John Mensah";

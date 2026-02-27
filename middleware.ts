@@ -4,17 +4,21 @@ import { AUTH_COOKIE_NAME, canAccessPath, parseSerializedSession } from "@/lib/a
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const nextValue = `${pathname}${request.nextUrl.search}`;
   const cookieValue = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   const session = parseSerializedSession(cookieValue);
 
   if (!session) {
     const loginUrl = new URL("/admin-login", request.url);
-    loginUrl.searchParams.set("next", pathname);
+    loginUrl.searchParams.set("next", nextValue);
     return NextResponse.redirect(loginUrl);
   }
 
   if (!canAccessPath(session.role, pathname)) {
-    return NextResponse.redirect(new URL("/admin-login", request.url));
+    const loginUrl = new URL("/admin-login", request.url);
+    loginUrl.searchParams.set("next", nextValue);
+    loginUrl.searchParams.set("reason", "role");
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();

@@ -1,16 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { RoleShell } from "@/components/role-shell";
-import { getSessionFromBrowser } from "@/lib/auth-client";
+import { useAppShell } from "@/lib/app-shell";
 import { formatDateTime } from "@/lib/format";
 import { getCertificatesForStudent, getCoursesState } from "@/lib/portal-state";
 import { appMeta } from "@/lib/seed-data";
 
 export default function InmateCertificatesPage() {
-  const session = useMemo(() => getSessionFromBrowser(), []);
+  const { session } = useAppShell();
   const studentId = session?.studentId ?? "GP-10234";
   const userName = session?.displayName ?? studentId;
 

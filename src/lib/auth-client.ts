@@ -21,5 +21,17 @@ export function clearSession(): void {
 }
 
 export function getSessionFromBrowser(): UserSession | null {
-  return browserStorage.loadState<UserSession>(STORAGE_KEYS.session);
+  const session = browserStorage.loadState<UserSession>(STORAGE_KEYS.session);
+
+  if (!session) {
+    return null;
+  }
+
+  const expiresAt = new Date(session.expiresAt).getTime();
+  if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) {
+    clearSession();
+    return null;
+  }
+
+  return session;
 }
