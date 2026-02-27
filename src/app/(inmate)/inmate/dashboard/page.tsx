@@ -1,8 +1,20 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import { CourseCard } from "@/components/course-card";
 import { ProgressBar } from "@/components/progress-bar";
 import { ProgressDonut } from "@/components/progress-donut";
 import { RoleShell } from "@/components/role-shell";
 import { ChartCard } from "@/components/chart-card";
+import { getSessionFromBrowser } from "@/lib/auth-client";
+import { formatDateTime } from "@/lib/format";
+import {
+  addAttendanceEvent,
+  createAttendanceEvent,
+  createExitEvent,
+  getAttendanceEventsForStudent,
+  summarizeAttendance,
+} from "@/lib/portal-state";
 import {
   appMeta,
   enrollments,
@@ -10,9 +22,14 @@ import {
   progressSnapshots,
   topRatedCourses,
 } from "@/lib/seed-data";
+import type { AttendanceEvent } from "@/types/domain";
 
 export default function InmateDashboardPage() {
+  const session = useMemo(() => getSessionFromBrowser(), []);
   const snapshot = progressSnapshots[0];
+  const studentId = session?.studentId ?? snapshot.studentId;
+  const userName = session?.displayName ?? "John Mensah";
+
   const activeCourses = enrollments
     .filter((item) => item.studentId === snapshot.studentId)
     .map((item) => {
@@ -25,12 +42,32 @@ export default function InmateDashboardPage() {
       };
     });
 
+  const [verifiedBy, setVerifiedBy] = useState<AttendanceEvent["verifiedBy"]>("fingerprint");
+  const [events, setEvents] = useState(() => getAttendanceEventsForStudent(studentId));
+  const summary = summarizeAttendance(events);
+
+  function refreshEvents(): void {
+    setEvents(getAttendanceEventsForStudent(studentId));
+  }
+
+  function handleClockIn(): void {
+    const nextEvent = createAttendanceEvent(session, "entry", verifiedBy);
+    addAttendanceEvent(nextEvent);
+    refreshEvents();
+  }
+
+  function handleClockOut(): void {
+    const nextEvent = createExitEvent(session, verifiedBy);
+    addAttendanceEvent(nextEvent);
+    refreshEvents();
+  }
+
   return (
-    <RoleShell title={appMeta.name} subtitle="Inmate Dashboard" userName="John Mensah">
+    <RoleShell title={appMeta.name} subtitle="Inmate Dashboard" userName={userName}>
       <section className="panel grid-2">
         <div>
-          <h1 style={{ marginBottom: 6 }}>Welcome Back, John Mensah</h1>
-          <p className="quick-info">Student ID: {snapshot.studentId}</p>
+          <h1 style={{ marginBottom: 6 }}>Welcome Back, {userName}</h1>
+          <p className="quick-info">Student ID: {studentId}</p>
           <div className="grid-3" style={{ marginTop: 14 }}>
             <article className="panel" style={{ padding: 12 }}>
               <p className="quick-info">Active Courses</p>
@@ -49,6 +86,61 @@ export default function InmateDashboardPage() {
         <div className="panel" style={{ padding: 12 }}>
           <h3 style={{ marginBottom: 10 }}>My Progress</h3>
           <ProgressDonut value={snapshot.completionPercent} label="Course Completion" size={190} />
+        </div>
+      </section>
+
+      <section className="panel grid-2">
+        <div>
+          <h2 className="section-title">Attendance Operations</h2>
+          <p className="quick-info" style={{ marginBottom: 10 }}>
+            Record supervised facility entry and exit events for audit logging.
+          </p>
+          <div className="inline-row" style={{ justifyContent: "flex-start" }}>
+            <select
+              className="select"
+              style={{ width: 180 }}
+              value={verifiedBy}
+              onChange={(event) => setVerifiedBy(event.target.value as AttendanceEvent["verifiedBy"])}
+            >
+              <option value="fingerprint">Fingerprint</option>
+              <option value="face">Facial Recognition</option>
+            </select>
+            <button type="button" className="button-primary" onClick={handleClockIn}>
+              Clock In
+            </button>
+            <button type="button" className="button-soft" onClick={handleClockOut}>
+              Clock Out
+            </button>
+          </div>
+          <div className="grid-3" style={{ marginTop: 14 }}>
+            <article className="panel" style={{ padding: 12 }}>
+              <p className="quick-info">Entries</p>
+              <h3>{summary.entries}</h3>
+            </article>
+            <article className="panel" style={{ padding: 12 }}>
+              <p className="quick-info">Exits</p>
+              <h3>{summary.exits}</h3>
+            </article>
+            <article className="panel" style={{ padding: 12 }}>
+              <p className="quick-info">Completion</p>
+              <h3>{summary.completionRate}%</h3>
+            </article>
+          </div>
+        </div>
+
+        <div className="panel" style={{ padding: 12 }}>
+          <h3 style={{ marginBottom: 10 }}>Recent Attendance Events</h3>
+          <div style={{ display: "grid", gap: 8 }}>
+            {events.slice(0, 6).map((event) => (
+              <div key={`${event.studentId}-${event.timestamp}`} className="inline-row panel" style={{ padding: 10 }}>
+                <span>
+                  {event.type.toUpperCase()} via {event.verifiedBy}
+                </span>
+                <span className="quick-info">{formatDateTime(event.timestamp)}</span>
+              </div>
+            ))}
+            {events.length === 0 ? <p className="quick-info">No attendance activity yet.</p> : null}
+          </div>
         </div>
       </section>
 

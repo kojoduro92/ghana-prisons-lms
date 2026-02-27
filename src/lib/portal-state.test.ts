@@ -3,9 +3,12 @@ import { inmates as seededInmates } from "@/lib/seed-data";
 import {
   addAttendanceEvent,
   addOrUpdateInmate,
+  createAttendanceEvent,
   createEntryEvent,
+  createExitEvent,
   getAttendanceEventsState,
   getInmatesState,
+  summarizeAttendance,
 } from "@/lib/portal-state";
 
 beforeEach(() => {
@@ -38,27 +41,48 @@ describe("portal state", () => {
     expect(next.some((item) => item.id === seededInmates[0].id)).toBe(true);
   });
 
-  it("records attendance events", () => {
-    const event = createEntryEvent(
-      {
-        userId: "inmate-001",
-        role: "inmate",
-        displayName: "John",
-        studentId: "GP-10234",
-        expiresAt: new Date(Date.now() + 1000 * 60).toISOString(),
-      },
-      {
-        method: "fingerprint",
-        result: "success",
-        timestamp: new Date().toISOString(),
-        deviceId: "lab-terminal-01",
-      },
-    );
+  it("records attendance events and returns summary", () => {
+    const session = {
+      userId: "inmate-001",
+      role: "inmate" as const,
+      displayName: "John",
+      studentId: "GP-10234",
+      expiresAt: new Date(Date.now() + 1000 * 60).toISOString(),
+    };
 
-    const next = addAttendanceEvent(event);
+    const entry = createEntryEvent(session, {
+      method: "fingerprint",
+      result: "success",
+      timestamp: new Date().toISOString(),
+      deviceId: "lab-terminal-01",
+    });
+    const exit = createExitEvent(session, "face");
+
+    addAttendanceEvent(entry);
+    const next = addAttendanceEvent(exit);
     const stored = getAttendanceEventsState();
+    const summary = summarizeAttendance(stored);
 
-    expect(next.length).toBe(1);
+    expect(next.length).toBe(2);
+    expect(stored[0].type).toBe("exit");
     expect(stored[0].studentId).toBe("GP-10234");
+    expect(summary.entries).toBe(1);
+    expect(summary.exits).toBe(1);
+    expect(summary.completionRate).toBe(100);
+  });
+
+  it("creates manual attendance event with requested type", () => {
+    const session = {
+      userId: "inmate-777",
+      role: "inmate" as const,
+      displayName: "Test",
+      studentId: "GP-77777",
+      expiresAt: new Date(Date.now() + 1000 * 60).toISOString(),
+    };
+
+    const event = createAttendanceEvent(session, "entry", "fingerprint");
+    expect(event.type).toBe("entry");
+    expect(event.verifiedBy).toBe("fingerprint");
+    expect(event.studentId).toBe("GP-77777");
   });
 });

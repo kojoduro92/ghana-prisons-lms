@@ -105,6 +105,9 @@ export default function AdminDashboardPage() {
               <option value="Enrolled">Enrolled</option>
               <option value="Pending">Pending</option>
             </select>
+            <Link href="/admin/attendance" className="button-soft">
+              Attendance Logs
+            </Link>
             <Link href="/admin/register-inmate" className="button-primary" data-testid="open-register-page">
               Register Inmate
             </Link>

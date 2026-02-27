@@ -38,6 +38,21 @@ export function addAttendanceEvent(event: AttendanceEvent, maxItems = 200): Atte
   return next;
 }
 
+export function createAttendanceEvent(
+  session: UserSession | null,
+  type: AttendanceEvent["type"],
+  verifiedBy: AttendanceEvent["verifiedBy"],
+  facility = "Digital Learning Lab",
+): AttendanceEvent {
+  return {
+    studentId: session?.studentId ?? session?.userId ?? "unknown",
+    type,
+    facility,
+    timestamp: new Date().toISOString(),
+    verifiedBy,
+  };
+}
+
 export function createEntryEvent(
   session: UserSession | null,
   attempt: VerificationAttempt,
@@ -50,4 +65,28 @@ export function createEntryEvent(
     timestamp: attempt.timestamp,
     verifiedBy: attempt.method,
   };
+}
+
+export function createExitEvent(
+  session: UserSession | null,
+  verifiedBy: AttendanceEvent["verifiedBy"] = "fingerprint",
+  facility = "Digital Learning Lab",
+): AttendanceEvent {
+  return createAttendanceEvent(session, "exit", verifiedBy, facility);
+}
+
+export function getAttendanceEventsForStudent(studentId: string): AttendanceEvent[] {
+  return getAttendanceEventsState().filter((event) => event.studentId === studentId);
+}
+
+export function summarizeAttendance(events: AttendanceEvent[]): {
+  entries: number;
+  exits: number;
+  completionRate: number;
+} {
+  const entries = events.filter((event) => event.type === "entry").length;
+  const exits = events.filter((event) => event.type === "exit").length;
+  const completionRate = entries > 0 ? Math.round((Math.min(entries, exits) / entries) * 100) : 0;
+
+  return { entries, exits, completionRate };
 }

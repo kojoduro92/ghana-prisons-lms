@@ -19,6 +19,12 @@ test("admin smoke flow", async ({ page }) => {
   await continueButton.click();
 
   await expect(page).toHaveURL(/\/admin\/dashboard/);
+
+  await page.getByRole("link", { name: "Attendance Logs" }).click();
+  await expect(page).toHaveURL(/\/admin\/attendance/);
+  await expect(page.getByRole("heading", { name: "Facility Entry / Exit Events" })).toBeVisible();
+
+  await page.goto("/admin/dashboard");
   await page.getByTestId("open-register-page").click();
 
   await expect(page).toHaveURL(/\/admin\/register-inmate/);
