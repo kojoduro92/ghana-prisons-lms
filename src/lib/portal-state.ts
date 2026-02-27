@@ -4,13 +4,20 @@ import type {
   AttendanceEvent,
   AuditAction,
   AuditEvent,
+  Course,
+  Enrollment,
   InmateProfile,
   ReportRecord,
   ReportType,
   UserSession,
   VerificationAttempt,
 } from "@/types/domain";
-import { inmates as seededInmates, reports as seededReports } from "@/lib/seed-data";
+import {
+  enrollments as seededEnrollments,
+  inmates as seededInmates,
+  reports as seededReports,
+  topRatedCourses as seededCourses,
+} from "@/lib/seed-data";
 import { STORAGE_KEYS, browserStorage } from "@/lib/storage";
 
 export function getInmatesState(): InmateProfile[] {
@@ -34,6 +41,58 @@ export function addOrUpdateInmate(nextInmate: InmateProfile): InmateProfile[] {
   const next = [nextInmate, ...withoutDuplicate];
 
   saveInmatesState(next);
+  return next;
+}
+
+export function getCoursesState(): Course[] {
+  const stored = browserStorage.loadState<Course[]>(STORAGE_KEYS.courses);
+
+  if (stored && stored.length > 0) {
+    return stored;
+  }
+
+  browserStorage.saveState(STORAGE_KEYS.courses, seededCourses);
+  return seededCourses;
+}
+
+export function addOrUpdateCourse(nextCourse: Course): Course[] {
+  const current = getCoursesState();
+  const withoutDuplicate = current.filter((item) => item.id !== nextCourse.id);
+  const next = [nextCourse, ...withoutDuplicate];
+
+  browserStorage.saveState(STORAGE_KEYS.courses, next);
+  return next;
+}
+
+export function getEnrollmentsState(): Enrollment[] {
+  const stored = browserStorage.loadState<Enrollment[]>(STORAGE_KEYS.enrollments);
+
+  if (stored && stored.length > 0) {
+    return stored;
+  }
+
+  browserStorage.saveState(STORAGE_KEYS.enrollments, seededEnrollments);
+  return seededEnrollments;
+}
+
+export function getEnrollmentsForStudent(studentId: string): Enrollment[] {
+  return getEnrollmentsState().filter((entry) => entry.studentId === studentId);
+}
+
+export function enrollStudentInCourse(studentId: string, courseId: string): Enrollment[] {
+  const current = getEnrollmentsState();
+  const existing = current.find((item) => item.studentId === studentId && item.courseId === courseId);
+
+  if (existing) {
+    return current;
+  }
+
+  const next: Enrollment[] = [
+    { studentId, courseId, progressPercent: 0, status: "In Progress" },
+    ...current,
+  ];
+
+  browserStorage.saveState(STORAGE_KEYS.enrollments, next);
   return next;
 }
 

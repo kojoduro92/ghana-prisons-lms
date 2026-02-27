@@ -98,6 +98,8 @@ export type AuditAction =
   | "login-success"
   | "biometric-verification"
   | "inmate-registered"
+  | "course-created"
+  | "course-enrolled"
   | "report-generated"
   | "report-exported";
 

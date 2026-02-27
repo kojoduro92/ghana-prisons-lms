@@ -108,6 +108,9 @@ export default function AdminDashboardPage() {
             <Link href="/admin/attendance" className="button-soft">
               Attendance Logs
             </Link>
+            <Link href="/admin/courses" className="button-soft">
+              Courses
+            </Link>
             <Link href="/admin/security" className="button-soft">
               Security
             </Link>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CourseCard } from "@/components/course-card";
 import { ProgressBar } from "@/components/progress-bar";
@@ -13,15 +14,11 @@ import {
   createAttendanceEvent,
   createExitEvent,
   getAttendanceEventsForStudent,
+  getCoursesState,
+  getEnrollmentsForStudent,
   summarizeAttendance,
 } from "@/lib/portal-state";
-import {
-  appMeta,
-  enrollments,
-  inmateGoals,
-  progressSnapshots,
-  topRatedCourses,
-} from "@/lib/seed-data";
+import { appMeta, inmateGoals, progressSnapshots } from "@/lib/seed-data";
 import type { AttendanceEvent } from "@/types/domain";
 
 export default function InmateDashboardPage() {
@@ -30,17 +27,23 @@ export default function InmateDashboardPage() {
   const studentId = session?.studentId ?? snapshot.studentId;
   const userName = session?.displayName ?? "John Mensah";
 
-  const activeCourses = enrollments
-    .filter((item) => item.studentId === snapshot.studentId)
-    .map((item) => {
-      const course = topRatedCourses.find((entry) => entry.id === item.courseId);
-      return {
-        id: item.courseId,
-        title: course?.title ?? item.courseId,
-        subtitle: course?.category ?? "General",
-        progress: item.progressPercent,
-      };
-    });
+  const [courses] = useState(getCoursesState);
+  const [enrollments] = useState(() => getEnrollmentsForStudent(studentId));
+
+  const activeCourses = enrollments.map((item) => {
+    const course = courses.find((entry) => entry.id === item.courseId);
+    return {
+      id: item.courseId,
+      title: course?.title ?? item.courseId,
+      subtitle: course?.category ?? "General",
+      progress: item.progressPercent,
+    };
+  });
+
+  const completionPercent =
+    activeCourses.length > 0
+      ? Math.round(activeCourses.reduce((sum, item) => sum + item.progress, 0) / activeCourses.length)
+      : 0;
 
   const [verifiedBy, setVerifiedBy] = useState<AttendanceEvent["verifiedBy"]>("fingerprint");
   const [events, setEvents] = useState(() => getAttendanceEventsForStudent(studentId));
@@ -71,7 +74,7 @@ export default function InmateDashboardPage() {
           <div className="grid-3" style={{ marginTop: 14 }}>
             <article className="panel" style={{ padding: 12 }}>
               <p className="quick-info">Active Courses</p>
-              <h3>{snapshot.activeCourses}</h3>
+              <h3>{activeCourses.length}</h3>
             </article>
             <article className="panel" style={{ padding: 12 }}>
               <p className="quick-info">Lessons Completed</p>
@@ -85,7 +88,7 @@ export default function InmateDashboardPage() {
         </div>
         <div className="panel" style={{ padding: 12 }}>
           <h3 style={{ marginBottom: 10 }}>My Progress</h3>
-          <ProgressDonut value={snapshot.completionPercent} label="Course Completion" size={190} />
+          <ProgressDonut value={completionPercent} label="Course Completion" size={190} />
         </div>
       </section>
 
@@ -149,11 +152,21 @@ export default function InmateDashboardPage() {
           <h2 className="section-title" style={{ marginBottom: 0 }}>
             Continue Learning
           </h2>
+          <Link href="/inmate/courses" className="button-soft">
+            Browse Courses
+          </Link>
         </div>
         <div className="grid-4">
           {activeCourses.map((course) => (
             <CourseCard key={course.id} title={course.title} subtitle={course.subtitle} progress={course.progress} />
           ))}
+          {activeCourses.length === 0 ? (
+            <article className="panel" style={{ padding: 12 }}>
+              <p className="quick-info" style={{ margin: 0 }}>
+                No courses enrolled yet. Open Browse Courses to start learning.
+              </p>
+            </article>
+          ) : null}
         </div>
       </section>
 

@@ -9,6 +9,8 @@ export const STORAGE_KEYS = {
   attendanceEvents: "gplp.attendance.events",
   auditEvents: "gplp.audit.events",
   inmates: "gplp.inmates",
+  courses: "gplp.courses",
+  enrollments: "gplp.enrollments",
   reports: "gplp.reports",
   activityState: "gplp.activity.state",
 } as const;

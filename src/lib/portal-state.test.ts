@@ -3,13 +3,18 @@ import { inmates as seededInmates } from "@/lib/seed-data";
 import {
   addAttendanceEvent,
   addAuditEvent,
+  addOrUpdateCourse,
   addReportRecord,
   addOrUpdateInmate,
   createAttendanceEvent,
   createEntryEvent,
   createExitEvent,
+  enrollStudentInCourse,
   getAttendanceEventsState,
   getAuditEventsState,
+  getCoursesState,
+  getEnrollmentsForStudent,
+  getEnrollmentsState,
   getInmatesState,
   getReportsState,
   summarizeAttendance,
@@ -114,5 +119,33 @@ describe("portal state", () => {
     expect(next.length).toBe(1);
     expect(history[0].action).toBe("login-attempt");
     expect(history[0].result).toBe("failed");
+  });
+
+  it("adds and persists courses", () => {
+    const next = addOrUpdateCourse({
+      id: "C-999",
+      title: "Project Management Basics",
+      category: "Management",
+      instructor: "Ms. Agyeman",
+      rating: 4.2,
+      thumbnail: "asset",
+    });
+
+    const stored = getCoursesState();
+    expect(next[0].id).toBe("C-999");
+    expect(stored[0].title).toBe("Project Management Basics");
+  });
+
+  it("enrolls student without creating duplicates", () => {
+    const before = getEnrollmentsForStudent("GP-10234").length;
+    const first = enrollStudentInCourse("GP-10234", "C-999");
+    const second = enrollStudentInCourse("GP-10234", "C-999");
+
+    const after = getEnrollmentsForStudent("GP-10234").length;
+    expect(first.length).toBe(second.length);
+    expect(after).toBe(before + 1);
+    expect(getEnrollmentsState().some((entry) => entry.studentId === "GP-10234" && entry.courseId === "C-999")).toBe(
+      true,
+    );
   });
 });
