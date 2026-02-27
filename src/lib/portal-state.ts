@@ -4,6 +4,7 @@ import type {
   AttendanceEvent,
   AuditAction,
   AuditEvent,
+  CertificateRecord,
   Course,
   Enrollment,
   InmateProfile,
@@ -13,6 +14,7 @@ import type {
   VerificationAttempt,
 } from "@/types/domain";
 import {
+  certificates as seededCertificates,
   enrollments as seededEnrollments,
   inmates as seededInmates,
   reports as seededReports,
@@ -93,6 +95,55 @@ export function enrollStudentInCourse(studentId: string, courseId: string): Enro
   ];
 
   browserStorage.saveState(STORAGE_KEYS.enrollments, next);
+  return next;
+}
+
+export function getCertificatesState(): CertificateRecord[] {
+  const stored = browserStorage.loadState<CertificateRecord[]>(STORAGE_KEYS.certificates);
+
+  if (stored && stored.length > 0) {
+    return stored;
+  }
+
+  browserStorage.saveState(STORAGE_KEYS.certificates, seededCertificates);
+  return seededCertificates;
+}
+
+export function getCertificatesForStudent(studentId: string): CertificateRecord[] {
+  return getCertificatesState().filter((item) => item.studentId === studentId);
+}
+
+export function issueCertificate(input: {
+  studentId: string;
+  courseId: string;
+  issuedBy: string;
+  note?: string;
+}): CertificateRecord[] {
+  const current = getCertificatesState();
+  const existing = current.find(
+    (item) => item.studentId === input.studentId && item.courseId === input.courseId,
+  );
+
+  if (existing) {
+    return current;
+  }
+
+  const maxId = current.reduce((max, item) => {
+    const value = Number(item.id.replace("CERT-", ""));
+    return Number.isFinite(value) ? Math.max(max, value) : max;
+  }, 0);
+
+  const nextRecord: CertificateRecord = {
+    id: `CERT-${String(maxId + 1).padStart(3, "0")}`,
+    studentId: input.studentId,
+    courseId: input.courseId,
+    issuedBy: input.issuedBy,
+    issuedAt: new Date().toISOString(),
+    note: input.note,
+  };
+
+  const next = [nextRecord, ...current];
+  browserStorage.saveState(STORAGE_KEYS.certificates, next);
   return next;
 }
 

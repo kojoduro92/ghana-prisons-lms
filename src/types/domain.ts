@@ -21,6 +21,15 @@ export interface InmateProfile {
   assignedPrison: string;
 }
 
+export interface CertificateRecord {
+  id: string;
+  studentId: string;
+  courseId: string;
+  issuedAt: string;
+  issuedBy: string;
+  note?: string;
+}
+
 export interface Course {
   id: string;
   title: string;
@@ -100,6 +109,7 @@ export type AuditAction =
   | "inmate-registered"
   | "course-created"
   | "course-enrolled"
+  | "certificate-issued"
   | "report-generated"
   | "report-exported";
 

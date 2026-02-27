@@ -5,20 +5,58 @@ import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ProgressBar } from "@/components/progress-bar";
 import { RoleShell } from "@/components/role-shell";
-import { getInmatesState, getReportsState } from "@/lib/portal-state";
-import { appMeta, enrollments, topRatedCourses } from "@/lib/seed-data";
+import {
+  addAuditEvent,
+  getCertificatesForStudent,
+  getCoursesState,
+  getEnrollmentsForStudent,
+  getInmatesState,
+  getReportsState,
+  issueCertificate,
+} from "@/lib/portal-state";
+import { formatDateTime } from "@/lib/format";
+import { appMeta } from "@/lib/seed-data";
 
 export default function InmateProfilePage() {
   const params = useParams<{ studentId: string }>();
   const studentId = decodeURIComponent(params.studentId);
+
   const inmates = useMemo(() => getInmatesState(), []);
   const [reportHistory] = useState(getReportsState);
+  const [courses] = useState(getCoursesState);
+  const [enrollments] = useState(() => getEnrollmentsForStudent(studentId));
+  const [certificates, setCertificates] = useState(() => getCertificatesForStudent(studentId));
+  const [notice, setNotice] = useState<string | null>(null);
 
   const inmate = inmates.find((entry) => entry.id === studentId);
-  const inmateEnrollments = enrollments.filter((entry) => entry.studentId === studentId);
   const visibleReports = reportHistory.filter(
     (record) => !record.scopeStudentId || record.scopeStudentId === studentId,
   );
+
+  function handleIssueCertificate(courseId: string): void {
+    if (!inmate) return;
+
+    const next = issueCertificate({
+      studentId,
+      courseId,
+      issuedBy: "Admin Officer",
+      note: `Issued from inmate profile ${inmate.fullName}`,
+    });
+
+    const updated = next.filter((item) => item.studentId === studentId);
+    setCertificates(updated);
+
+    const courseTitle = courses.find((item) => item.id === courseId)?.title ?? courseId;
+    setNotice(`Certificate issued for ${courseTitle}.`);
+
+    addAuditEvent({
+      action: "certificate-issued",
+      actor: "Admin Officer",
+      result: "success",
+      target: `${studentId}:${courseId}`,
+      details: courseTitle,
+    });
+  }
 
   if (!inmate) {
     return (
@@ -85,21 +123,69 @@ export default function InmateProfilePage() {
       </section>
 
       <section className="panel">
-        <h2 className="section-title">Enrolled Courses & Progress</h2>
-        {inmateEnrollments.map((enrollment) => {
-          const course = topRatedCourses.find((entry) => entry.id === enrollment.courseId);
+        <div className="inline-row" style={{ marginBottom: 8 }}>
+          <h2 className="section-title" style={{ marginBottom: 0 }}>
+            Enrolled Courses & Progress
+          </h2>
+          <span className="quick-info">Certificates issued: {certificates.length}</span>
+        </div>
+
+        {notice ? <p className="status-ok">{notice}</p> : null}
+
+        {enrollments.map((enrollment) => {
+          const course = courses.find((entry) => entry.id === enrollment.courseId);
+          const isCertified = certificates.some((item) => item.courseId === enrollment.courseId);
+          const canIssue = enrollment.progressPercent >= 80 && !isCertified;
+
           return (
-            <ProgressBar
-              key={enrollment.courseId}
-              label={course?.title ?? enrollment.courseId}
-              current={enrollment.progressPercent}
-              total={100}
-            />
+            <article key={enrollment.courseId} className="panel" style={{ padding: 12, marginBottom: 10 }}>
+              <ProgressBar
+                label={course?.title ?? enrollment.courseId}
+                current={enrollment.progressPercent}
+                total={100}
+              />
+              <div className="inline-row" style={{ marginTop: 8 }}>
+                <span className="quick-info">
+                  Status: {enrollment.status} | Progress: {enrollment.progressPercent}%
+                </span>
+                {isCertified ? (
+                  <span className="status-ok">Certificate Issued</span>
+                ) : (
+                  <button
+                    type="button"
+                    className={canIssue ? "button-primary" : "button-soft"}
+                    disabled={!canIssue}
+                    onClick={() => handleIssueCertificate(enrollment.courseId)}
+                  >
+                    Issue Certificate
+                  </button>
+                )}
+              </div>
+            </article>
           );
         })}
-        {inmateEnrollments.length === 0 ? (
+
+        {enrollments.length === 0 ? (
           <p className="quick-info">No enrollments recorded yet for this inmate profile.</p>
         ) : null}
+      </section>
+
+      <section className="panel">
+        <h2 className="section-title">Certificate History</h2>
+        <div style={{ display: "grid", gap: 8 }}>
+          {certificates.map((certificate) => {
+            const courseTitle = courses.find((item) => item.id === certificate.courseId)?.title ?? certificate.courseId;
+            return (
+              <div key={certificate.id} className="inline-row panel" style={{ padding: 10 }}>
+                <span>
+                  {certificate.id} - {courseTitle}
+                </span>
+                <span className="quick-info">{formatDateTime(certificate.issuedAt)}</span>
+              </div>
+            );
+          })}
+          {certificates.length === 0 ? <p className="quick-info">No certificates issued yet.</p> : null}
+        </div>
       </section>
     </RoleShell>
   );

@@ -11,6 +11,7 @@ export const STORAGE_KEYS = {
   inmates: "gplp.inmates",
   courses: "gplp.courses",
   enrollments: "gplp.enrollments",
+  certificates: "gplp.certificates",
   reports: "gplp.reports",
   activityState: "gplp.activity.state",
 } as const;

@@ -14,6 +14,7 @@ import {
   createAttendanceEvent,
   createExitEvent,
   getAttendanceEventsForStudent,
+  getCertificatesForStudent,
   getCoursesState,
   getEnrollmentsForStudent,
   summarizeAttendance,
@@ -29,6 +30,7 @@ export default function InmateDashboardPage() {
 
   const [courses] = useState(getCoursesState);
   const [enrollments] = useState(() => getEnrollmentsForStudent(studentId));
+  const [certificates] = useState(() => getCertificatesForStudent(studentId));
 
   const activeCourses = enrollments.map((item) => {
     const course = courses.find((entry) => entry.id === item.courseId);
@@ -82,7 +84,7 @@ export default function InmateDashboardPage() {
             </article>
             <article className="panel" style={{ padding: 12 }}>
               <p className="quick-info">Certificates Earned</p>
-              <h3>{snapshot.certificatesEarned}</h3>
+              <h3>{certificates.length}</h3>
             </article>
           </div>
         </div>
@@ -152,9 +154,14 @@ export default function InmateDashboardPage() {
           <h2 className="section-title" style={{ marginBottom: 0 }}>
             Continue Learning
           </h2>
-          <Link href="/inmate/courses" className="button-soft">
-            Browse Courses
-          </Link>
+          <div className="inline-row">
+            <Link href="/inmate/courses" className="button-soft">
+              Browse Courses
+            </Link>
+            <Link href="/inmate/certificates" className="button-soft">
+              View Certificates
+            </Link>
+          </div>
         </div>
         <div className="grid-4">
           {activeCourses.map((course) => (

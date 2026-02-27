@@ -17,6 +17,7 @@ const actionOptions: AuditAction[] = [
   "inmate-registered",
   "course-created",
   "course-enrolled",
+  "certificate-issued",
   "report-generated",
   "report-exported",
 ];

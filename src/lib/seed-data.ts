@@ -1,5 +1,6 @@
 import type {
   AdminDashboardStats,
+  CertificateRecord,
   Course,
   Enrollment,
   InmateProfile,
@@ -174,6 +175,25 @@ export const reports: ReportRecord[] = [
     type: "performance",
     generatedAt: "2026-02-25T12:10:00.000Z",
     generatedBy: "Admin Officer",
+  },
+];
+
+export const certificates: CertificateRecord[] = [
+  {
+    id: "CERT-001",
+    studentId: "GP-10234",
+    courseId: "C-001",
+    issuedAt: "2026-02-20T10:00:00.000Z",
+    issuedBy: "Admin Officer",
+    note: "Completed Basic Computer Skills competency track.",
+  },
+  {
+    id: "CERT-002",
+    studentId: "GP-10234",
+    courseId: "C-002",
+    issuedAt: "2026-02-24T14:30:00.000Z",
+    issuedBy: "Admin Officer",
+    note: "Completed English Language Basics module.",
   },
 ];
 

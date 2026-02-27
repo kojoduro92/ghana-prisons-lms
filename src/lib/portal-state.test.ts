@@ -12,11 +12,13 @@ import {
   enrollStudentInCourse,
   getAttendanceEventsState,
   getAuditEventsState,
+  getCertificatesForStudent,
   getCoursesState,
   getEnrollmentsForStudent,
   getEnrollmentsState,
   getInmatesState,
   getReportsState,
+  issueCertificate,
   summarizeAttendance,
 } from "@/lib/portal-state";
 
@@ -147,5 +149,37 @@ describe("portal state", () => {
     expect(getEnrollmentsState().some((entry) => entry.studentId === "GP-10234" && entry.courseId === "C-999")).toBe(
       true,
     );
+  });
+
+  it("issues certificates and persists them for an inmate", () => {
+    const before = getCertificatesForStudent("GP-10234").length;
+    const next = issueCertificate({
+      studentId: "GP-10234",
+      courseId: "C-003",
+      issuedBy: "Admin Officer",
+      note: "Issued from test",
+    });
+
+    const inmateCertificates = getCertificatesForStudent("GP-10234");
+    expect(next[0].studentId).toBe("GP-10234");
+    expect(next[0].courseId).toBe("C-003");
+    expect(inmateCertificates.length).toBe(before + 1);
+  });
+
+  it("does not issue duplicate certificate for same student and course", () => {
+    const first = issueCertificate({
+      studentId: "GP-10234",
+      courseId: "C-004",
+      issuedBy: "Admin Officer",
+    });
+    const second = issueCertificate({
+      studentId: "GP-10234",
+      courseId: "C-004",
+      issuedBy: "Admin Officer",
+    });
+
+    const matching = getCertificatesForStudent("GP-10234").filter((item) => item.courseId === "C-004");
+    expect(second.length).toBe(first.length);
+    expect(matching.length).toBe(1);
   });
 });
