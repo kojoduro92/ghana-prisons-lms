@@ -1,0 +1,53 @@
+"use client";
+
+import type { AttendanceEvent, InmateProfile, UserSession, VerificationAttempt } from "@/types/domain";
+import { inmates as seededInmates } from "@/lib/seed-data";
+import { STORAGE_KEYS, browserStorage } from "@/lib/storage";
+
+export function getInmatesState(): InmateProfile[] {
+  const stored = browserStorage.loadState<InmateProfile[]>(STORAGE_KEYS.inmates);
+
+  if (stored && stored.length > 0) {
+    return stored;
+  }
+
+  browserStorage.saveState(STORAGE_KEYS.inmates, seededInmates);
+  return seededInmates;
+}
+
+export function saveInmatesState(nextInmates: InmateProfile[]): void {
+  browserStorage.saveState(STORAGE_KEYS.inmates, nextInmates);
+}
+
+export function addOrUpdateInmate(nextInmate: InmateProfile): InmateProfile[] {
+  const current = getInmatesState();
+  const withoutDuplicate = current.filter((item) => item.id !== nextInmate.id);
+  const next = [nextInmate, ...withoutDuplicate];
+
+  saveInmatesState(next);
+  return next;
+}
+
+export function getAttendanceEventsState(): AttendanceEvent[] {
+  return browserStorage.loadState<AttendanceEvent[]>(STORAGE_KEYS.attendanceEvents) ?? [];
+}
+
+export function addAttendanceEvent(event: AttendanceEvent, maxItems = 200): AttendanceEvent[] {
+  const next = [event, ...getAttendanceEventsState()].slice(0, maxItems);
+  browserStorage.saveState(STORAGE_KEYS.attendanceEvents, next);
+  return next;
+}
+
+export function createEntryEvent(
+  session: UserSession | null,
+  attempt: VerificationAttempt,
+  facility = "Digital Learning Lab",
+): AttendanceEvent {
+  return {
+    studentId: session?.studentId ?? session?.userId ?? "unknown",
+    type: "entry",
+    facility,
+    timestamp: attempt.timestamp,
+    verifiedBy: attempt.method,
+  };
+}

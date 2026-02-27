@@ -6,6 +6,8 @@ export const STORAGE_KEYS = {
   session: "gplp.session",
   selectedInmate: "gplp.selected-inmate",
   verificationLogs: "gplp.verification.logs",
+  attendanceEvents: "gplp.attendance.events",
+  inmates: "gplp.inmates",
   activityState: "gplp.activity.state",
 } as const;
 

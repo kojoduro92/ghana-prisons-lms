@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { roleHomePath } from "@/lib/auth";
 import { getSessionFromBrowser } from "@/lib/auth-client";
 import { formatDateTime } from "@/lib/format";
+import { addAttendanceEvent, createEntryEvent } from "@/lib/portal-state";
 import { STORAGE_KEYS, browserStorage } from "@/lib/storage";
 import { appendVerificationLog, simulateVerificationAttempt } from "@/lib/verification";
 import type { VerificationAttempt } from "@/types/domain";
@@ -15,7 +16,9 @@ export default function VerificationPage() {
   const [result, setResult] = useState<VerificationAttempt["result"] | null>(null);
 
   const session = useMemo(() => getSessionFromBrowser(), []);
-  const logs = browserStorage.loadState<VerificationAttempt[]>(STORAGE_KEYS.verificationLogs) ?? [];
+  const [logs, setLogs] = useState<VerificationAttempt[]>(
+    () => browserStorage.loadState<VerificationAttempt[]>(STORAGE_KEYS.verificationLogs) ?? [],
+  );
 
   const nextPath = useMemo(() => {
     if (typeof window === "undefined") return null;
@@ -25,8 +28,14 @@ export default function VerificationPage() {
   function runVerification() {
     const attempt = simulateVerificationAttempt(method);
     const nextLogs = appendVerificationLog(logs, attempt);
+
     browserStorage.saveState(STORAGE_KEYS.verificationLogs, nextLogs);
+    setLogs(nextLogs);
     setResult(attempt.result);
+
+    if (attempt.result === "success") {
+      addAttendanceEvent(createEntryEvent(session, attempt));
+    }
   }
 
   const continuePath = nextPath || roleHomePath(session?.role ?? "inmate");

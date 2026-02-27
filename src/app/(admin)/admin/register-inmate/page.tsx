@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { RoleShell } from "@/components/role-shell";
+import { addOrUpdateInmate } from "@/lib/portal-state";
 import { appMeta } from "@/lib/seed-data";
+import type { InmateProfile } from "@/types/domain";
 
 function generateStudentId(): string {
   const randomSuffix = Math.floor(10000 + Math.random() * 90000);
@@ -13,18 +16,49 @@ export default function RegisterInmatePage() {
   const [fullName, setFullName] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [prisonId, setPrisonId] = useState("");
-  const [gender, setGender] = useState("Male");
+  const [gender, setGender] = useState<InmateProfile["gender"]>("Male");
   const [educationBackground, setEducationBackground] = useState("");
   const [skillInterests, setSkillInterests] = useState("");
   const [blockAssignment, setBlockAssignment] = useState("");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [latestRegisteredId, setLatestRegisteredId] = useState<string | null>(null);
   const [generatedStudentId, setGeneratedStudentId] = useState(generateStudentId);
   const defaultPassword = "Prison1234";
 
+  function resetFormForNextEntry(): void {
+    setFullName("");
+    setDateOfBirth("");
+    setPrisonId("");
+    setGender("Male");
+    setEducationBackground("");
+    setSkillInterests("");
+    setBlockAssignment("");
+    setGeneratedStudentId(generateStudentId());
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSuccessMessage(`Inmate ${fullName || "record"} registered with ${generatedStudentId}. Credentials generated securely.`);
-    setGeneratedStudentId(generateStudentId());
+
+    const profile: InmateProfile = {
+      id: generatedStudentId,
+      fullName: fullName.trim(),
+      prisonNumber: prisonId.trim(),
+      dateOfBirth,
+      gender,
+      educationBackground: educationBackground.trim() || "Not specified",
+      skillInterests: skillInterests
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+      blockAssignment: blockAssignment.trim() || "TBD",
+      biometricStatus: "Enrolled",
+      assignedPrison: "Nsawam",
+    };
+
+    addOrUpdateInmate(profile);
+    setLatestRegisteredId(profile.id);
+    setSuccessMessage(`Inmate ${profile.fullName} registered with ${profile.id}. Credentials generated securely.`);
+    resetFormForNextEntry();
   }
 
   return (
@@ -54,7 +88,7 @@ export default function RegisterInmatePage() {
             </label>
             <label>
               Gender
-              <select className="select" value={gender} onChange={(e) => setGender(e.target.value)}>
+              <select className="select" value={gender} onChange={(e) => setGender(e.target.value as InmateProfile["gender"])}>
                 <option>Male</option>
                 <option>Female</option>
                 <option>Other</option>
@@ -69,7 +103,7 @@ export default function RegisterInmatePage() {
               />
             </label>
             <label>
-              Skill Interests
+              Skill Interests (comma separated)
               <input className="input" value={skillInterests} onChange={(e) => setSkillInterests(e.target.value)} />
             </label>
             <label>
@@ -109,7 +143,18 @@ export default function RegisterInmatePage() {
           </div>
         </form>
 
-        {successMessage ? <p className="status-ok" style={{ marginTop: 12 }}>{successMessage}</p> : null}
+        {successMessage ? (
+          <div className="panel" style={{ marginTop: 12, padding: 12 }}>
+            <p className="status-ok" style={{ margin: 0 }}>{successMessage}</p>
+            {latestRegisteredId ? (
+              <div style={{ marginTop: 8 }}>
+                <Link className="button-soft" href={`/admin/inmates/${latestRegisteredId}`}>
+                  Open Registered Profile
+                </Link>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </section>
     </RoleShell>
   );
