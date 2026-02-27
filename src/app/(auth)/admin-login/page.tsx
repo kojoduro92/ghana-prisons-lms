@@ -4,6 +4,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSessionFromCredential, findDemoCredential, roleHomePath } from "@/lib/auth";
 import { persistSession } from "@/lib/auth-client";
+import { addAuditEvent } from "@/lib/portal-state";
 import { appMeta } from "@/lib/seed-data";
 
 export default function AdminLoginPage() {
@@ -22,12 +23,25 @@ export default function AdminLoginPage() {
 
     const credential = findDemoCredential(username, password);
     if (!credential) {
+      addAuditEvent({
+        action: "login-attempt",
+        actor: username || "unknown",
+        result: "failed",
+        details: "Invalid credentials supplied",
+      });
       setError("Invalid credentials. Use the demo accounts listed below.");
       return;
     }
 
     const session = createSessionFromCredential(credential);
     persistSession(session);
+    addAuditEvent({
+      action: "login-success",
+      actor: session.displayName,
+      result: "success",
+      target: session.role,
+      details: "Role session established",
+    });
 
     const destination = nextPath || roleHomePath(credential.role);
     router.push(`/verify-identity?next=${encodeURIComponent(destination)}`);

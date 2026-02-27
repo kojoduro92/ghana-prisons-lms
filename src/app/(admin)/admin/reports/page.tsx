@@ -4,7 +4,13 @@ import { useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { RoleShell } from "@/components/role-shell";
 import { formatDateTime } from "@/lib/format";
-import { getAttendanceEventsState, getInmatesState, getReportsState, addReportRecord } from "@/lib/portal-state";
+import {
+  addAuditEvent,
+  addReportRecord,
+  getAttendanceEventsState,
+  getInmatesState,
+  getReportsState,
+} from "@/lib/portal-state";
 import { buildReportRows, downloadCsv, toCsv, type ReportRow } from "@/lib/reporting";
 import { appMeta, enrollments } from "@/lib/seed-data";
 import type { ReportType } from "@/types/domain";
@@ -62,6 +68,13 @@ export default function ReportsWorkspacePage() {
         rowCount: rows.length,
       }),
     );
+    addAuditEvent({
+      action: "report-generated",
+      actor: "Admin Officer",
+      result: "success",
+      target: reportType,
+      details: `Rows: ${rows.length}`,
+    });
   }
 
   function runExportCsv(): void {
@@ -79,6 +92,13 @@ export default function ReportsWorkspacePage() {
     const csv = toCsv(rows);
     const suffix = scopeStudentId.trim() ? `-${scopeStudentId.trim()}` : "-all";
     downloadCsv(`report-${reportType}${suffix}.csv`, csv);
+    addAuditEvent({
+      action: "report-exported",
+      actor: "Admin Officer",
+      result: "success",
+      target: reportType,
+      details: `Rows: ${rows.length}`,
+    });
   }
 
   return (

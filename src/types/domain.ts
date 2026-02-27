@@ -92,3 +92,21 @@ export interface StorageAdapter {
   saveState<T>(key: string, value: T): void;
   clearState(key: string): void;
 }
+
+export type AuditAction =
+  | "login-attempt"
+  | "login-success"
+  | "biometric-verification"
+  | "inmate-registered"
+  | "report-generated"
+  | "report-exported";
+
+export interface AuditEvent {
+  id: string;
+  action: AuditAction;
+  actor: string;
+  result: "success" | "failed";
+  timestamp: string;
+  target?: string;
+  details?: string;
+}

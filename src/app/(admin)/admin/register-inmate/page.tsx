@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { RoleShell } from "@/components/role-shell";
-import { addOrUpdateInmate } from "@/lib/portal-state";
+import { addAuditEvent, addOrUpdateInmate } from "@/lib/portal-state";
 import { appMeta } from "@/lib/seed-data";
 import type { InmateProfile } from "@/types/domain";
 
@@ -56,6 +56,13 @@ export default function RegisterInmatePage() {
     };
 
     addOrUpdateInmate(profile);
+    addAuditEvent({
+      action: "inmate-registered",
+      actor: "Admin Officer",
+      result: "success",
+      target: profile.id,
+      details: `Prison Number: ${profile.prisonNumber}`,
+    });
     setLatestRegisteredId(profile.id);
     setSuccessMessage(`Inmate ${profile.fullName} registered with ${profile.id}. Credentials generated securely.`);
     resetFormForNextEntry();

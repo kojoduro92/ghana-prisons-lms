@@ -2,6 +2,8 @@
 
 import type {
   AttendanceEvent,
+  AuditAction,
+  AuditEvent,
   InmateProfile,
   ReportRecord,
   ReportType,
@@ -126,5 +128,32 @@ export function addReportRecord(
 
   const next = [nextRecord, ...current].slice(0, 200);
   browserStorage.saveState(STORAGE_KEYS.reports, next);
+  return next;
+}
+
+export function getAuditEventsState(): AuditEvent[] {
+  return browserStorage.loadState<AuditEvent[]>(STORAGE_KEYS.auditEvents) ?? [];
+}
+
+export function addAuditEvent(input: {
+  action: AuditAction;
+  actor: string;
+  result: "success" | "failed";
+  target?: string;
+  details?: string;
+}): AuditEvent[] {
+  const current = getAuditEventsState();
+  const nextEvent: AuditEvent = {
+    id: `AUD-${String(current.length + 1).padStart(4, "0")}`,
+    action: input.action,
+    actor: input.actor,
+    result: input.result,
+    target: input.target,
+    details: input.details,
+    timestamp: new Date().toISOString(),
+  };
+
+  const next = [nextEvent, ...current].slice(0, 400);
+  browserStorage.saveState(STORAGE_KEYS.auditEvents, next);
   return next;
 }

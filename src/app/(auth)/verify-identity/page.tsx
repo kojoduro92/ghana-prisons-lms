@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { roleHomePath } from "@/lib/auth";
 import { getSessionFromBrowser } from "@/lib/auth-client";
 import { formatDateTime } from "@/lib/format";
-import { addAttendanceEvent, createEntryEvent } from "@/lib/portal-state";
+import { addAttendanceEvent, addAuditEvent, createEntryEvent } from "@/lib/portal-state";
 import { STORAGE_KEYS, browserStorage } from "@/lib/storage";
 import { appendVerificationLog, simulateVerificationAttempt } from "@/lib/verification";
 import type { VerificationAttempt } from "@/types/domain";
@@ -32,6 +32,13 @@ export default function VerificationPage() {
     browserStorage.saveState(STORAGE_KEYS.verificationLogs, nextLogs);
     setLogs(nextLogs);
     setResult(attempt.result);
+    addAuditEvent({
+      action: "biometric-verification",
+      actor: session?.displayName ?? session?.userId ?? "unknown",
+      result: attempt.result,
+      target: attempt.method,
+      details: `Device: ${attempt.deviceId}`,
+    });
 
     if (attempt.result === "success") {
       addAttendanceEvent(createEntryEvent(session, attempt));

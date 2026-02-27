@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { inmates as seededInmates } from "@/lib/seed-data";
 import {
   addAttendanceEvent,
+  addAuditEvent,
   addReportRecord,
   addOrUpdateInmate,
   createAttendanceEvent,
   createEntryEvent,
   createExitEvent,
   getAttendanceEventsState,
+  getAuditEventsState,
   getInmatesState,
   getReportsState,
   summarizeAttendance,
@@ -98,5 +100,19 @@ describe("portal state", () => {
     expect(next[0].type).toBe("attendance");
     expect(history[0].scopeStudentId).toBe("GP-10234");
     expect(history[0].rowCount).toBe(5);
+  });
+
+  it("adds audit events to security history", () => {
+    const next = addAuditEvent({
+      action: "login-attempt",
+      actor: "admin",
+      result: "failed",
+      details: "bad password",
+    });
+    const history = getAuditEventsState();
+
+    expect(next.length).toBe(1);
+    expect(history[0].action).toBe("login-attempt");
+    expect(history[0].result).toBe("failed");
   });
 });
