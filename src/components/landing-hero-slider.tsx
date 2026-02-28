@@ -61,11 +61,20 @@ export function LandingHeroSlider({ slides }: LandingHeroSliderProps) {
   return (
     <section
       className="landing-slider"
+      style={{ display: "grid", gap: 10 }}
       onMouseEnter={() => setAutoplay(false)}
       onMouseLeave={() => setAutoplay(true)}
       aria-label="Landing hero slider"
     >
-      <article className="landing-slider-stage">
+      <article
+        className="landing-slider-stage"
+        style={{
+          position: "relative",
+          minHeight: 420,
+          overflow: "hidden",
+          borderRadius: 14,
+        }}
+      >
         <Image
           src={activeSlide.imageSrc}
           alt={activeSlide.title}
@@ -73,9 +82,10 @@ export function LandingHeroSlider({ slides }: LandingHeroSliderProps) {
           priority
           sizes="(max-width: 980px) 100vw, 52vw"
           className="landing-slider-image"
+          style={{ objectFit: "cover" }}
         />
-        <div className="landing-slider-scrim" aria-hidden />
-        <div className="landing-slider-content">
+        <div className="landing-slider-scrim" aria-hidden style={{ position: "absolute", inset: 0 }} />
+        <div className="landing-slider-content" style={{ position: "absolute", inset: 0 }}>
           <p className="landing-slider-eyebrow">{activeSlide.eyebrow}</p>
           <h2>{activeSlide.title}</h2>
           <p>{activeSlide.description}</p>
