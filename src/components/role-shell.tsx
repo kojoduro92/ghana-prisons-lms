@@ -35,18 +35,18 @@ const roleNavLinks: Record<Role, Array<{ label: string; href: string }>> = {
 
 const flowActionsByRole: Record<Role, Array<{ label: string; href: string }>> = {
   admin: [
-    { label: "Next: Register A New Inmate", href: "/admin/register-inmate" },
-    { label: "Next: Run Reports Workspace", href: "/admin/reports" },
-    { label: "Next: Review Security Events", href: "/admin/security" },
+    { label: "Next Action: Register New Inmate", href: "/admin/register-inmate" },
+    { label: "Next Action: Open Reports Workspace", href: "/admin/reports" },
+    { label: "Next Action: Review Security Events", href: "/admin/security" },
   ],
   inmate: [
-    { label: "Next: Continue Course Learning", href: "/inmate/courses" },
-    { label: "Next: Check My Certificates", href: "/inmate/certificates" },
-    { label: "Next: Return To Dashboard", href: "/inmate/dashboard" },
+    { label: "Next Action: Continue Course Learning", href: "/inmate/courses" },
+    { label: "Next Action: Check My Certificates", href: "/inmate/certificates" },
+    { label: "Next Action: Return to Dashboard", href: "/inmate/dashboard" },
   ],
   management: [
-    { label: "Next: Refresh Analytics View", href: "/management/dashboard" },
-    { label: "Next: Switch To Admin Role", href: "/admin-login?next=%2Fadmin%2Fdashboard" },
+    { label: "Next Action: Refresh Analytics View", href: "/management/dashboard" },
+    { label: "Next Action: Switch to Admin Sign-In", href: "/admin-login?next=%2Fadmin%2Fdashboard" },
   ],
 };
 

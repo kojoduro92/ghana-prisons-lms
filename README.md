@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ghana Prisons Learning Portal (Phase 1)
 
-## Getting Started
+Phase 1 is a responsive, offline-first prototype for the Ghana Prisons LMS with seeded data and role-based demo flows.
 
-First, run the development server:
+## Stack
+
+- Next.js (App Router)
+- TypeScript
+- Tailwind CSS
+- npm
+
+## Run Locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Demo Accounts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Admin: `admin / Prison1234`
+- Management: `manager / Prison1234`
+- Inmate: `GP-10234 / Prison1234`
 
-## Learn More
+All role sessions pass through biometric verification at `/verify-identity`.
 
-To learn more about Next.js, take a look at the following resources:
+## Core Routes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Public:
+  - `/landing`
+  - `/admin-login`
+  - `/verify-identity`
+- Admin:
+  - `/admin/dashboard`
+  - `/admin/register-inmate`
+  - `/admin/inmates/[studentId]`
+  - `/admin/attendance`
+  - `/admin/courses`
+  - `/admin/certificates`
+  - `/admin/reports`
+  - `/admin/security`
+- Inmate:
+  - `/inmate/dashboard`
+  - `/inmate/courses`
+  - `/inmate/certificates`
+- Management:
+  - `/management/dashboard`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Cohesive Journey Checks
 
-## Deploy on Vercel
+### Admin
+1. Login as `admin`.
+2. Complete verification.
+3. Register inmate.
+4. Open inmate profile, issue certificate, check security logs.
+5. Generate/export reports.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Inmate
+1. Login as `GP-10234`.
+2. Complete verification.
+3. Use dashboard attendance actions.
+4. Browse courses.
+5. Check issued certificates.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Management
+1. Login as `manager`.
+2. Complete verification.
+3. Review analytics dashboard.
+4. Use operations drill-down and export analytics CSV.
+
+## Scripts
+
+```bash
+npm run lint
+npm run test:unit
+npm run build
+npm run test:e2e
+```
+
+## Notes
+
+- Role routes are server-guarded by role/session checks.
+- Data is seeded and persisted in browser storage for prototype behavior.
+- `.vscode/` is gitignored to keep workspace-specific editor config out of commits.

@@ -549,4 +549,11 @@ a {
     width: 100%;
     text-align: center;
   }
+
+  .table-shell th,
+  .table-shell td {
+    padding: 8px 10px;
+    font-size: 0.84rem;
+    white-space: nowrap;
+  }
 }
