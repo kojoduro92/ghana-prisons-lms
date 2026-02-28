@@ -6,9 +6,17 @@ import { DataTable } from "@/components/data-table";
 import { RoleShell } from "@/components/role-shell";
 import { StatCard } from "@/components/stat-card";
 import { formatDateTime } from "@/lib/format";
-import { addAuditEvent, getAttendanceEventsState, getInmatesState, summarizeAttendance } from "@/lib/portal-state";
+import {
+  addAuditEvent,
+  getAttendanceEventsState,
+  getCertificatesState,
+  getCoursesState,
+  getEnrollmentsState,
+  getInmatesState,
+  summarizeAttendance,
+} from "@/lib/portal-state";
 import { toCsv, downloadCsv } from "@/lib/reporting";
-import { appMeta, managementSnapshot } from "@/lib/seed-data";
+import { appMeta } from "@/lib/seed-data";
 import type { AttendanceEvent } from "@/types/domain";
 
 function buildRecentTrend(events: Array<{ timestamp: string; type: "entry" | "exit" }>, days = 6): number[] {
@@ -32,6 +40,9 @@ function buildRecentTrend(events: Array<{ timestamp: string; type: "entry" | "ex
 export default function ManagementDashboardPage() {
   const [events] = useState(getAttendanceEventsState);
   const [inmates] = useState(getInmatesState);
+  const [courses] = useState(getCoursesState);
+  const [enrollments] = useState(getEnrollmentsState);
+  const [certificates] = useState(getCertificatesState);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | AttendanceEvent["type"]>("all");
   const [notice, setNotice] = useState<string | null>(null);
@@ -45,6 +56,8 @@ export default function ManagementDashboardPage() {
   const trend = useMemo(() => buildRecentTrend(events, 6), [events]);
   const peakLoad = Math.max(...trend, 0);
   const projectedNextWeek = Math.round((trend.reduce((sum, value) => sum + value, 0) / Math.max(1, trend.length)) * 1.12);
+  const highProgressCount = enrollments.filter((entry) => entry.progressPercent >= 80).length;
+  const completionShare = enrollments.length > 0 ? Math.round((highProgressCount / enrollments.length) * 100) : 0;
 
   const prisonDistribution = useMemo(() => {
     const grouped = new Map<string, number>();
@@ -75,6 +88,11 @@ export default function ManagementDashboardPage() {
       label: "Peak Daily Capacity Use",
       value: `${peakLoad} entries in one day`,
       confidence: "78%",
+    },
+    {
+      label: "High Progress Enrollments",
+      value: `${highProgressCount} learners >= 80%`,
+      confidence: "83%",
     },
   ];
 
@@ -113,8 +131,8 @@ export default function ManagementDashboardPage() {
     <RoleShell title={appMeta.name} subtitle="Management Analytics Portal" userName="Command Staff">
       <section className="grid-3">
         <StatCard label="Active Learners (Observed)" value={activeLearners} helper="Based on verified entries" />
-        <StatCard label="Entry/Exit Completion Rate" value={`${attendanceSummary.completionRate}%`} helper="Operational attendance closure" />
-        <StatCard label="Registered Inmates" value={inmates.length} helper="Persisted local registry" />
+        <StatCard label="Completion Share" value={`${completionShare}%`} helper="Enrollments at 80% or more" />
+        <StatCard label="Certificates Issued" value={certificates.length} helper={`Across ${courses.length} active courses`} />
       </section>
 
       <section className="grid-2">
@@ -163,7 +181,10 @@ export default function ManagementDashboardPage() {
         <div className="panel" style={{ marginTop: 12 }}>
           <h3 style={{ marginBottom: 8 }}>Reference Baseline</h3>
           <p className="quick-info" style={{ margin: 0 }}>
-            Historical enrollment trend points: {managementSnapshot.enrollmentTrend.join(", ")}
+            Recent trend points: {trend.join(", ")} | Entry/Exit closure: {attendanceSummary.completionRate}%
+          </p>
+          <p className="quick-info" style={{ margin: "4px 0 0" }}>
+            Registered inmates: {inmates.length} | Total enrollments: {enrollments.length}
           </p>
         </div>
       </section>

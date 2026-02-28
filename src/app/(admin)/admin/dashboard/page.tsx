@@ -7,26 +7,52 @@ import { RoleShell } from "@/components/role-shell";
 import { StatCard } from "@/components/stat-card";
 import { useAppShell } from "@/lib/app-shell";
 import { ChartCard } from "@/components/chart-card";
-import { appMeta, adminStats, enrollmentDistribution } from "@/lib/seed-data";
+import { appMeta, courseCategories } from "@/lib/seed-data";
 import { formatDateTime } from "@/lib/format";
-import { getAttendanceEventsState, getInmatesState } from "@/lib/portal-state";
+import {
+  getAttendanceEventsState,
+  getCertificatesState,
+  getCoursesState,
+  getEnrollmentsState,
+  getInmatesState,
+} from "@/lib/portal-state";
 
 export default function AdminDashboardPage() {
   const { setSelectedInmateId } = useAppShell();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "Enrolled" | "Pending">("all");
   const [inmateRows] = useState(getInmatesState);
+  const [courses] = useState(getCoursesState);
+  const [enrollments] = useState(getEnrollmentsState);
+  const [certificates] = useState(getCertificatesState);
   const [attendanceEvents] = useState(getAttendanceEventsState);
 
   const liveStats = useMemo(() => {
     const activeLearners = inmateRows.filter((item) => item.biometricStatus === "Enrolled").length;
 
     return {
-      ...adminStats,
       totalInmatesRegistered: inmateRows.length,
       activeLearners,
+      coursesEnrolled: enrollments.length,
+      certificatesIssued: certificates.length,
     };
-  }, [inmateRows]);
+  }, [certificates.length, enrollments.length, inmateRows]);
+
+  const enrollmentByCategory = useMemo(() => {
+    const bucket = new Map<string, number>();
+
+    for (const category of courseCategories) {
+      bucket.set(category, 0);
+    }
+
+    for (const enrollment of enrollments) {
+      const course = courses.find((item) => item.id === enrollment.courseId);
+      const category = course?.category ?? "Other";
+      bucket.set(category, (bucket.get(category) ?? 0) + 1);
+    }
+
+    return Array.from(bucket.entries()).map(([label, value]) => ({ label, value }));
+  }, [courses, enrollments]);
 
   const filteredRows = useMemo(() => {
     return inmateRows.filter((inmate) => {
@@ -53,12 +79,12 @@ export default function AdminDashboardPage() {
       <section className="grid-2">
         <ChartCard title="Course Enrollment Stats">
           <div className="mini-bars">
-            {enrollmentDistribution.map((item) => (
-              <span key={item.label} style={{ height: `${Math.round(item.value / 4)}px` }} />
+            {enrollmentByCategory.map((item) => (
+              <span key={item.label} style={{ height: `${Math.max(14, item.value * 24)}px` }} />
             ))}
           </div>
           <div className="legend">
-            {enrollmentDistribution.map((item) => (
+            {enrollmentByCategory.map((item) => (
               <span key={item.label}>{item.label}</span>
             ))}
           </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CourseCard } from "@/components/course-card";
 import { ProgressBar } from "@/components/progress-bar";
 import { ProgressDonut } from "@/components/progress-donut";
@@ -19,13 +19,27 @@ import {
   getEnrollmentsForStudent,
   summarizeAttendance,
 } from "@/lib/portal-state";
-import { appMeta, inmateGoals, progressSnapshots } from "@/lib/seed-data";
+import { appMeta } from "@/lib/seed-data";
 import type { AttendanceEvent } from "@/types/domain";
+
+function buildWeeklyActivity(events: AttendanceEvent[], days = 6): number[] {
+  const points: number[] = [];
+  const now = new Date();
+
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const day = new Date(now);
+    day.setDate(now.getDate() - i);
+    const key = day.toISOString().slice(0, 10);
+    const count = events.filter((event) => event.type === "entry" && event.timestamp.slice(0, 10) === key).length;
+    points.push(count);
+  }
+
+  return points;
+}
 
 export default function InmateDashboardPage() {
   const { session } = useAppShell();
-  const snapshot = progressSnapshots[0];
-  const studentId = session?.studentId ?? snapshot.studentId;
+  const studentId = session?.studentId ?? "GP-10234";
   const userName = session?.displayName ?? "John Mensah";
 
   const [courses] = useState(getCoursesState);
@@ -50,6 +64,40 @@ export default function InmateDashboardPage() {
   const [verifiedBy, setVerifiedBy] = useState<AttendanceEvent["verifiedBy"]>("fingerprint");
   const [events, setEvents] = useState(() => getAttendanceEventsForStudent(studentId));
   const summary = summarizeAttendance(events);
+
+  const weeklyActivity = useMemo(() => {
+    const generated = buildWeeklyActivity(events, 6);
+    if (generated.some((value) => value > 0)) {
+      return generated;
+    }
+    return [2, 4, 4, 6, 5, 7];
+  }, [events]);
+
+  const completedLessons = useMemo(() => {
+    const progressTotal = enrollments.reduce((sum, entry) => sum + entry.progressPercent, 0);
+    return Math.max(0, Math.round(progressTotal / 20));
+  }, [enrollments]);
+
+  const goals = useMemo(() => {
+    const digitalCourse = activeCourses.find((course) => course.subtitle === "IT & Digital Skills");
+    return [
+      {
+        label: "Complete IT & Digital Skills Course",
+        current: digitalCourse?.progress ?? 0,
+        total: 100,
+      },
+      {
+        label: "Earn 3 Certificates",
+        current: certificates.length,
+        total: 3,
+      },
+      {
+        label: "Attendance Completion",
+        current: summary.completionRate,
+        total: 100,
+      },
+    ];
+  }, [activeCourses, certificates.length, summary.completionRate]);
 
   function refreshEvents(): void {
     setEvents(getAttendanceEventsForStudent(studentId));
@@ -80,7 +128,7 @@ export default function InmateDashboardPage() {
             </article>
             <article className="panel" style={{ padding: 12 }}>
               <p className="quick-info">Lessons Completed</p>
-              <h3>{snapshot.completedLessons}</h3>
+              <h3>{completedLessons}</h3>
             </article>
             <article className="panel" style={{ padding: 12 }}>
               <p className="quick-info">Certificates Earned</p>
@@ -180,7 +228,7 @@ export default function InmateDashboardPage() {
       <section className="grid-2">
         <ChartCard title="Weekly Learning Activity">
           <div className="mini-bars" style={{ minHeight: 130 }}>
-            {snapshot.weeklyActivity.map((point, idx) => (
+            {weeklyActivity.map((point, idx) => (
               <span key={idx} style={{ height: `${point * 16}px` }} />
             ))}
           </div>
@@ -195,7 +243,7 @@ export default function InmateDashboardPage() {
         </ChartCard>
 
         <ChartCard title="Goals & Achievements">
-          {inmateGoals.map((goal) => (
+          {goals.map((goal) => (
             <ProgressBar key={goal.label} label={goal.label} current={goal.current} total={goal.total} />
           ))}
         </ChartCard>
