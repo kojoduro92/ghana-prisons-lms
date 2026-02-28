@@ -2,10 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { ChartCard } from "@/components/chart-card";
+import { DataTable } from "@/components/data-table";
 import { RoleShell } from "@/components/role-shell";
 import { StatCard } from "@/components/stat-card";
-import { getAttendanceEventsState, getInmatesState, summarizeAttendance } from "@/lib/portal-state";
+import { formatDateTime } from "@/lib/format";
+import { addAuditEvent, getAttendanceEventsState, getInmatesState, summarizeAttendance } from "@/lib/portal-state";
+import { toCsv, downloadCsv } from "@/lib/reporting";
 import { appMeta, managementSnapshot } from "@/lib/seed-data";
+import type { AttendanceEvent } from "@/types/domain";
 
 function buildRecentTrend(events: Array<{ timestamp: string; type: "entry" | "exit" }>, days = 6): number[] {
   const points: number[] = [];
@@ -28,6 +32,9 @@ function buildRecentTrend(events: Array<{ timestamp: string; type: "entry" | "ex
 export default function ManagementDashboardPage() {
   const [events] = useState(getAttendanceEventsState);
   const [inmates] = useState(getInmatesState);
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | AttendanceEvent["type"]>("all");
+  const [notice, setNotice] = useState<string | null>(null);
 
   const attendanceSummary = summarizeAttendance(events);
   const activeLearners = useMemo(() => {
@@ -70,6 +77,37 @@ export default function ManagementDashboardPage() {
       confidence: "78%",
     },
   ];
+
+  const filteredEvents = useMemo(() => {
+    return events.filter((event) => {
+      const matchesQuery =
+        event.studentId.toLowerCase().includes(query.toLowerCase()) ||
+        event.facility.toLowerCase().includes(query.toLowerCase()) ||
+        event.verifiedBy.toLowerCase().includes(query.toLowerCase());
+
+      const matchesType = typeFilter === "all" ? true : event.type === typeFilter;
+      return matchesQuery && matchesType;
+    });
+  }, [events, query, typeFilter]);
+
+  function handleExportAnalytics(): void {
+    const rows = trend.map((value, index) => ({
+      dayOffset: index + 1,
+      entryCount: value,
+      projectedWeeklyEntries: projectedNextWeek,
+      completionRatePercent: attendanceSummary.completionRate,
+    }));
+    const csv = toCsv(rows);
+    downloadCsv("management-analytics.csv", csv);
+    setNotice("Management analytics CSV exported.");
+    addAuditEvent({
+      action: "report-exported",
+      actor: "Command Staff",
+      result: "success",
+      target: "management-analytics",
+      details: `Rows: ${rows.length}`,
+    });
+  }
 
   return (
     <RoleShell title={appMeta.name} subtitle="Management Analytics Portal" userName="Command Staff">
@@ -128,6 +166,48 @@ export default function ManagementDashboardPage() {
             Historical enrollment trend points: {managementSnapshot.enrollmentTrend.join(", ")}
           </p>
         </div>
+      </section>
+
+      <section className="panel">
+        <div className="inline-row" style={{ marginBottom: 12 }}>
+          <h2 className="section-title" style={{ marginBottom: 0 }}>
+            Operations Drill-down
+          </h2>
+          <div className="inline-row">
+            <input
+              className="input"
+              style={{ width: 220 }}
+              placeholder="Search student, facility, method"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <select
+              className="select"
+              value={typeFilter}
+              onChange={(event) => setTypeFilter(event.target.value as "all" | AttendanceEvent["type"])}
+            >
+              <option value="all">All event types</option>
+              <option value="entry">Entry only</option>
+              <option value="exit">Exit only</option>
+            </select>
+            <button type="button" className="button-primary" onClick={handleExportAnalytics} data-testid="management-export-csv">
+              Export Analytics CSV
+            </button>
+          </div>
+        </div>
+        {notice ? <p className="status-ok">{notice}</p> : null}
+
+        <DataTable
+          rows={filteredEvents.slice(0, 30)}
+          columns={[
+            { key: "studentId", header: "Student ID", render: (row) => row.studentId },
+            { key: "type", header: "Type", render: (row) => row.type.toUpperCase() },
+            { key: "facility", header: "Facility", render: (row) => row.facility },
+            { key: "verifiedBy", header: "Method", render: (row) => row.verifiedBy },
+            { key: "timestamp", header: "Timestamp", render: (row) => formatDateTime(row.timestamp) },
+          ]}
+          emptyLabel="No attendance events found for current filters."
+        />
       </section>
     </RoleShell>
   );

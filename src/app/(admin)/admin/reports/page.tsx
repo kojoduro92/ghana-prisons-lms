@@ -127,6 +127,7 @@ export default function ReportsWorkspacePage() {
               placeholder="Student ID (optional)"
               value={scopeStudentId}
               onChange={(event) => setScopeStudentId(event.target.value)}
+              data-testid="report-student-scope"
             />
             <button type="button" className="button-primary" onClick={runGenerateReport}>
               Generate Report

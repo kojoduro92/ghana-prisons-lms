@@ -1,24 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { loginThroughVerification } from "./helpers";
 
 test("admin smoke flow", async ({ page }) => {
-  await page.goto("/admin-login");
-
-  await page.getByTestId("admin-login-submit").click();
-
-  const verifyButton = page.getByTestId("verify-identity-btn");
-  const continueButton = page.getByRole("button", { name: "Continue to Portal" });
-
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    await verifyButton.click();
-    if (await continueButton.isEnabled()) {
-      break;
-    }
-  }
-
-  await expect(continueButton).toBeEnabled();
-  await continueButton.click();
-
-  await expect(page).toHaveURL(/\/admin\/dashboard/);
+  await loginThroughVerification(page, {
+    username: "admin",
+    password: "Prison1234",
+    expectedHomePath: /\/admin\/dashboard/,
+  });
 
   await page.getByRole("link", { name: "Attendance Logs" }).click();
   await expect(page).toHaveURL(/\/admin\/attendance/);
