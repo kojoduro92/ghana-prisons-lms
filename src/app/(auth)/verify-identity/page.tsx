@@ -23,6 +23,25 @@ import type { VerificationAttempt } from "@/types/domain";
 const facilityOptions = ["Digital Learning Lab", "Library Study Hall", "Vocational Workshop", "Language Lab"] as const;
 const deviceOptions = ["Desktop PC", "Laptop", "Tablet"] as const;
 
+function detectCurrentDeviceType(): (typeof deviceOptions)[number] {
+  if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return "Desktop PC";
+  }
+
+  const ua = navigator.userAgent.toLowerCase();
+  const touchPoints = navigator.maxTouchPoints ?? 0;
+  const shortestSide = Math.min(window.screen.width, window.screen.height);
+  const isTabletUA = /ipad|tablet|kindle|playbook|silk/.test(ua);
+  const isPhoneUA = /iphone|ipod|android.*mobile|phone|mobi/.test(ua);
+  const isLikelyTablet = isTabletUA || (!isPhoneUA && touchPoints > 0 && shortestSide >= 720);
+
+  if (isLikelyTablet) return "Tablet";
+
+  const viewportWidth = Math.max(window.innerWidth || 0, window.screen.width || 0);
+  if (viewportWidth <= 1440) return "Laptop";
+  return "Desktop PC";
+}
+
 export default function VerificationPage() {
   const router = useRouter();
   const { session, setActiveSession } = useAppShell();
@@ -31,14 +50,18 @@ export default function VerificationPage() {
   const [lastAttempt, setLastAttempt] = useState<VerificationAttempt | null>(null);
   const [scanCount, setScanCount] = useState(0);
   const [faceCameraActive, setFaceCameraActive] = useState(false);
+  const [faceCameraStarting, setFaceCameraStarting] = useState(false);
+  const [faceVideoReady, setFaceVideoReady] = useState(false);
   const [faceCameraError, setFaceCameraError] = useState<string | null>(null);
   const [faceCapturedAt, setFaceCapturedAt] = useState<string | null>(null);
   const [faceSnapshotDataUrl, setFaceSnapshotDataUrl] = useState<string | null>(null);
+  const [faceCaptureSource, setFaceCaptureSource] = useState<"camera" | "sample" | null>(null);
   const [deviceBiometricAt, setDeviceBiometricAt] = useState<string | null>(null);
   const [deviceBiometricMessage, setDeviceBiometricMessage] = useState<string | null>(null);
   const [deviceBiometricBusy, setDeviceBiometricBusy] = useState(false);
   const [facility, setFacility] = useState<(typeof facilityOptions)[number]>("Digital Learning Lab");
-  const [allocatedDeviceType, setAllocatedDeviceType] = useState<(typeof deviceOptions)[number]>("Tablet");
+  const [allocatedDeviceType, setAllocatedDeviceType] = useState<(typeof deviceOptions)[number]>(() => detectCurrentDeviceType());
+  const [deviceSelectionMode, setDeviceSelectionMode] = useState<"auto" | "manual">("auto");
   const [logs, setLogs] = useState<VerificationAttempt[]>(
     () => browserStorage.loadState<VerificationAttempt[]>(STORAGE_KEYS.verificationLogs) ?? [],
   );
@@ -69,7 +92,9 @@ export default function VerificationPage() {
       faceVideoRef.current.srcObject = null;
     }
 
+    setFaceCameraStarting(false);
     setFaceCameraActive(false);
+    setFaceVideoReady(false);
   }, []);
 
   useEffect(() => {
@@ -78,6 +103,37 @@ export default function VerificationPage() {
     };
   }, [stopFaceCamera]);
 
+  useEffect(() => {
+    if (deviceSelectionMode !== "auto") return;
+
+    const syncDetectedDevice = () => {
+      const next = detectCurrentDeviceType();
+      setAllocatedDeviceType((previous) => (previous === next ? previous : next));
+    };
+
+    syncDetectedDevice();
+    window.addEventListener("resize", syncDetectedDevice);
+    return () => window.removeEventListener("resize", syncDetectedDevice);
+  }, [deviceSelectionMode]);
+
+  function hasLiveFaceFrame(): boolean {
+    const video = faceVideoRef.current;
+    return Boolean(video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0);
+  }
+
+  async function attachFaceStreamToVideo(stream: MediaStream): Promise<boolean> {
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      const video = faceVideoRef.current;
+      if (video) {
+        video.srcObject = stream;
+        await video.play().catch(() => undefined);
+        return true;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    }
+    return false;
+  }
+
   async function startFaceCamera(): Promise<void> {
     if (!navigator.mediaDevices?.getUserMedia) {
       setFaceCameraError("Camera API is not available in this browser.");
@@ -85,37 +141,92 @@ export default function VerificationPage() {
     }
 
     try {
+      setFaceCameraStarting(true);
+      setFaceCameraError(null);
+      setFaceVideoReady(false);
+      setFaceSnapshotDataUrl(null);
+      setFaceCaptureSource(null);
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: "user",
+          facingMode: { ideal: "user" },
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 1280, min: 640 },
         },
         audio: false,
       });
 
-      stopFaceCamera();
+      if (faceStreamRef.current) {
+        for (const track of faceStreamRef.current.getTracks()) {
+          track.stop();
+        }
+      }
       faceStreamRef.current = stream;
-      if (faceVideoRef.current) {
-        faceVideoRef.current.srcObject = stream;
-        await faceVideoRef.current.play().catch(() => undefined);
+      setFaceCameraActive(true);
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        track.onmute = () => {
+          setFaceVideoReady(false);
+          setFaceCameraError("Camera stream paused. Check device camera privacy settings and try again.");
+        };
+        track.onended = () => {
+          setFaceVideoReady(false);
+          setFaceCameraActive(false);
+        };
+      }
+      const attached = await attachFaceStreamToVideo(stream);
+      if (!attached) {
+        setFaceCameraStarting(false);
+        setFaceCameraActive(false);
+        setFaceVideoReady(false);
+        setFaceCameraError("Camera connected, but preview element was not ready. Retry Start Camera.");
+        return;
       }
 
-      setFaceCameraActive(true);
-      setFaceCameraError(null);
+      const probeStartMs = Date.now();
+      const readinessProbe = window.setInterval(() => {
+        const hasFrame = hasLiveFaceFrame();
+
+        if (hasFrame) {
+          window.clearInterval(readinessProbe);
+          setFaceVideoReady(true);
+          setFaceCameraStarting(false);
+          setFaceCameraError(null);
+          return;
+        }
+
+        if (Date.now() - probeStartMs > 4000) {
+          window.clearInterval(readinessProbe);
+          setFaceCameraStarting(false);
+          if (!strictBiometricMode) {
+            setFaceCameraActive(false);
+            setFaceSnapshotDataUrl("/assets/education/sample-face-avatar.svg");
+            setFaceCaptureSource("sample");
+            setFaceCapturedAt(new Date().toISOString());
+            setFaceCameraError("Live camera frame unavailable. Sample face loaded; retry camera when ready.");
+          } else {
+            setFaceVideoReady(false);
+            setFaceCameraError("Live camera frame unavailable. Check camera permissions/privacy shutter and retry.");
+          }
+        }
+      }, 160);
     } catch {
+      setFaceCameraStarting(false);
       setFaceCameraActive(false);
-      setFaceCameraError("Camera permission denied or unavailable. Fallback face capture can still be used.");
+      setFaceVideoReady(false);
+      setFaceCameraError("Camera permission denied or unavailable. You can use the sample face in fallback mode.");
     }
   }
 
   function captureFace(): void {
     const now = new Date().toISOString();
 
-    if (strictBiometricMode && (!faceCameraActive || !faceVideoRef.current || faceVideoRef.current.videoWidth <= 0)) {
+    if (strictBiometricMode && !hasLiveFaceFrame()) {
       setFaceCameraError("Strict biometric mode requires live camera capture before verification.");
       return;
     }
 
-    if (faceCameraActive && faceVideoRef.current && faceVideoRef.current.videoWidth > 0) {
+    if (hasLiveFaceFrame() && faceVideoRef.current) {
       const canvas = document.createElement("canvas");
       canvas.width = faceVideoRef.current.videoWidth;
       canvas.height = faceVideoRef.current.videoHeight;
@@ -123,13 +234,28 @@ export default function VerificationPage() {
       if (context) {
         context.drawImage(faceVideoRef.current, 0, 0, canvas.width, canvas.height);
         setFaceSnapshotDataUrl(canvas.toDataURL("image/jpeg", 0.92));
+        setFaceCaptureSource("camera");
       }
       stopFaceCamera();
     } else {
-      setFaceSnapshotDataUrl((previous) => previous ?? "/assets/education/hero-library.jpg");
+      setFaceSnapshotDataUrl("/assets/education/sample-face-avatar.svg");
+      setFaceCaptureSource("sample");
     }
 
     setFaceCapturedAt(now);
+    setFaceCameraError(null);
+    setScanCount((previous) => previous + 1);
+  }
+
+  function applySampleFace(): void {
+    if (strictBiometricMode) {
+      setFaceCameraError("Sample face cannot be used in strict biometric mode. Start live camera capture.");
+      return;
+    }
+
+    setFaceSnapshotDataUrl("/assets/education/sample-face-avatar.svg");
+    setFaceCapturedAt(new Date().toISOString());
+    setFaceCaptureSource("sample");
     setFaceCameraError(null);
     setScanCount((previous) => previous + 1);
   }
@@ -176,7 +302,8 @@ export default function VerificationPage() {
   }
 
   function runVerification() {
-    const usingFaceProof = method === "face" && Boolean(faceCapturedAt);
+    const usingFaceProof =
+      method === "face" && Boolean(faceCapturedAt) && (strictBiometricMode ? faceCaptureSource === "camera" : true);
     const usingDeviceProof = method === "fingerprint" && Boolean(deviceBiometricAt);
     const forcedResult = strictBiometricMode
       ? usingFaceProof || usingDeviceProof
@@ -191,7 +318,13 @@ export default function VerificationPage() {
       : usingDeviceProof
         ? `${deviceLabel}-biometric-01`
         : `${deviceLabel}-terminal-01`;
-    const proof = usingFaceProof ? "camera-face" : usingDeviceProof ? "device-biometric" : "simulated";
+    const proof = usingFaceProof
+      ? faceCaptureSource === "sample"
+        ? "simulated"
+        : "camera-face"
+      : usingDeviceProof
+        ? "device-biometric"
+        : "simulated";
     const attempt = simulateVerificationAttempt(method, Math.random(), {
       forceResult: forcedResult,
       deviceId,
@@ -261,15 +394,25 @@ export default function VerificationPage() {
   const continuePath = nextPath || roleHomePath(session?.role ?? "inmate");
 
   return (
-    <div className="portal-root" style={{ display: "grid", placeItems: "center" }}>
-      <div className="panel" style={{ width: "min(760px, 100%)" }}>
-        <div className="inline-row" style={{ justifyContent: "flex-start", gap: 10, marginBottom: 6 }}>
-          <BrandLogo size={42} />
-          <h1 style={{ marginBottom: 0 }}>Identity Verification</h1>
+    <div className="portal-root verification-page-root">
+      <div className="panel verification-page-card">
+        <div className="verification-header">
+          <div className="inline-row verification-brand-row">
+            <BrandLogo size={46} />
+            <div>
+              <h1 style={{ marginBottom: 0 }}>Identity Verification</h1>
+              <p className="quick-info" style={{ margin: "4px 0 0" }}>
+                Identity verification required before system access.
+              </p>
+            </div>
+          </div>
+          <div className="verification-chip-row">
+            <span className="verification-chip">Secure Biometric Checkpoint</span>
+            <span className="verification-chip">
+              {strictBiometricMode ? "Policy: Strict" : "Policy: Fallback"}
+            </span>
+          </div>
         </div>
-        <p className="quick-info" style={{ marginBottom: 16 }}>
-          Identity verification required before system access.
-        </p>
         {reason === "entry" ? (
           <p className="status-bad" style={{ marginBottom: 12 }}>
             Facility entry authorization is required before opening inmate learning pages.
@@ -283,8 +426,11 @@ export default function VerificationPage() {
 
         <section className="verification-shell">
           <div className="panel verification-workflow">
-            <h2 style={{ fontSize: "1.1rem", marginBottom: 10 }}>Verification Method</h2>
-            <div className="panel" style={{ marginBottom: 12, padding: 12 }}>
+            <div className="inline-row" style={{ marginBottom: 10 }}>
+              <h2 style={{ fontSize: "1.14rem", marginBottom: 0 }}>Verification Method</h2>
+              <span className="quick-info">{hardwareBiometricAdapter.label}</span>
+            </div>
+            <div className="panel verification-assignment-card" style={{ marginBottom: 12, padding: 12 }}>
               <p style={{ margin: "0 0 8px", fontWeight: 600 }}>Facility and Device Assignment</p>
               <div className="grid-2">
                 <label>
@@ -302,7 +448,10 @@ export default function VerificationPage() {
                   <select
                     className="select"
                     value={allocatedDeviceType}
-                    onChange={(event) => setAllocatedDeviceType(event.target.value as (typeof deviceOptions)[number])}
+                    onChange={(event) => {
+                      setAllocatedDeviceType(event.target.value as (typeof deviceOptions)[number]);
+                      setDeviceSelectionMode("manual");
+                    }}
                   >
                     {deviceOptions.map((item) => (
                       <option key={item} value={item}>
@@ -310,13 +459,28 @@ export default function VerificationPage() {
                       </option>
                     ))}
                   </select>
+                  <div className="inline-row" style={{ marginTop: 6, justifyContent: "flex-start" }}>
+                    <button
+                      type="button"
+                      className="button-soft"
+                      onClick={() => {
+                        setDeviceSelectionMode("auto");
+                        setAllocatedDeviceType(detectCurrentDeviceType());
+                      }}
+                    >
+                      Auto Detect
+                    </button>
+                    <span className={deviceSelectionMode === "auto" ? "status-ok" : "status-neutral"}>
+                      {deviceSelectionMode === "auto" ? "Auto detected" : "Manual selection"}
+                    </span>
+                  </div>
                 </label>
               </div>
               <p className="quick-info" style={{ margin: "8px 0 0" }}>
                 Assignment is logged with biometric verification for attendance, device usage, and security reporting.
               </p>
             </div>
-            <div className="grid-2">
+            <div className="grid-2 verification-method-switch">
               <button
                 type="button"
                 className={method === "fingerprint" ? "button-primary" : "button-soft"}
@@ -334,30 +498,92 @@ export default function VerificationPage() {
             </div>
 
             {method === "face" ? (
-              <div className="panel" style={{ marginTop: 12, padding: 12 }}>
-                <p style={{ margin: "0 0 8px", fontWeight: 600 }}>Facial Capture</p>
-                <div className={`biometric-preview biometric-preview-face ${faceCapturedAt ? "biometric-preview-ready" : ""}`}>
+              <div className="panel verification-capture-card" style={{ marginTop: 12, padding: 12 }}>
+                <div className="inline-row" style={{ marginBottom: 8 }}>
+                  <p style={{ margin: 0, fontWeight: 700 }}>Facial Capture</p>
+                  <span className={faceCameraActive && faceVideoReady ? "status-ok" : "status-neutral"}>
+                    {faceCameraActive
+                      ? faceVideoReady
+                        ? "Camera live"
+                        : faceCameraStarting
+                          ? "Starting camera..."
+                          : "Camera connected"
+                      : "Camera idle"}
+                  </span>
+                </div>
+                <div
+                  className={`biometric-preview biometric-preview-face biometric-preview-square ${
+                    faceCapturedAt ? "biometric-preview-ready" : ""
+                  }`}
+                >
                   {faceSnapshotDataUrl ? (
                     <div className="biometric-preview-snapshot" style={{ backgroundImage: `url(${faceSnapshotDataUrl})` }} />
                   ) : faceCameraActive ? (
-                    <video ref={faceVideoRef} className="biometric-preview-video" autoPlay muted playsInline />
+                    <>
+                      <video
+                        ref={faceVideoRef}
+                        className={`biometric-preview-video ${
+                          faceVideoReady ? "biometric-preview-video-ready" : "biometric-preview-video-waiting"
+                        }`}
+                        autoPlay
+                        muted
+                        playsInline
+                        onPlaying={() => {
+                          setFaceVideoReady(true);
+                          setFaceCameraStarting(false);
+                        }}
+                        onLoadedMetadata={() => {
+                          setFaceVideoReady(true);
+                          setFaceCameraStarting(false);
+                        }}
+                        onLoadedData={() => setFaceVideoReady(true)}
+                        onCanPlay={() => setFaceVideoReady(true)}
+                      />
+                      {!faceVideoReady ? (
+                        <div className="biometric-preview-overlay">
+                          <p>Camera started. Waiting for live frame...</p>
+                        </div>
+                      ) : null}
+                    </>
                   ) : (
                     <Image
-                      src="/assets/education/hero-library.jpg"
-                      alt="Face capture preview"
+                      src="/assets/education/sample-face-avatar.svg"
+                      alt="Sample face preview"
                       fill
                       className="biometric-preview-image"
                       sizes="(max-width: 760px) 100vw, 50vw"
                     />
                   )}
+                  <span className="biometric-preview-label">
+                    {faceCameraActive
+                      ? faceVideoReady
+                        ? "Live Camera Feed"
+                        : "Initializing Camera"
+                      : faceSnapshotDataUrl
+                        ? "Captured Face"
+                        : "Sample Face Preview"}
+                  </span>
                   <span className="biometric-scan-line" aria-hidden />
                 </div>
                 <div className="biometric-control-row">
-                  <button type="button" className="button-soft" onClick={() => void startFaceCamera()}>
-                    Start Camera
+                  <button
+                    type="button"
+                    className="button-soft"
+                    onClick={() => void startFaceCamera()}
+                    disabled={faceCameraActive || faceCameraStarting}
+                  >
+                    {faceCameraStarting ? "Starting..." : "Start Camera"}
                   </button>
-                  <button type="button" className="button-soft" onClick={captureFace}>
+                  <button
+                    type="button"
+                    className="button-soft"
+                    onClick={captureFace}
+                    disabled={strictBiometricMode && !(faceCameraActive && faceVideoReady)}
+                  >
                     Capture Face
+                  </button>
+                  <button type="button" className="button-soft" onClick={applySampleFace} disabled={strictBiometricMode}>
+                    Use Sample Face
                   </button>
                   <button type="button" className="button-soft" onClick={stopFaceCamera} disabled={!faceCameraActive}>
                     Stop Camera
@@ -370,7 +596,7 @@ export default function VerificationPage() {
                 </p>
               </div>
             ) : (
-              <div className="panel" style={{ marginTop: 12, padding: 12 }}>
+              <div className="panel verification-capture-card" style={{ marginTop: 12, padding: 12 }}>
                 <p style={{ margin: "0 0 8px", fontWeight: 600 }}>Device Biometric</p>
                 <p className="quick-info" style={{ marginTop: 0 }}>
                   {deviceBiometricSupported
@@ -409,7 +635,7 @@ export default function VerificationPage() {
             <h2 style={{ fontSize: "1.1rem", marginBottom: 10 }}>Biometric Scanner</h2>
             <div
               key={scanCount}
-              className={`verification-stage verification-stage-${method} ${
+              className={`verification-stage ${method === "face" ? "verification-stage-square" : ""} verification-stage-${method} ${
                 result ? `verification-stage-${result}` : ""
               }`}
             >
@@ -427,7 +653,12 @@ export default function VerificationPage() {
             </p>
             {method === "face" ? (
               <p className="quick-info" style={{ margin: "4px 0 0" }}>
-                Face proof: {faceCapturedAt ? "Captured" : "Not captured"}
+                Face proof:{" "}
+                {faceCapturedAt
+                  ? faceCaptureSource === "camera"
+                    ? "Captured from live camera"
+                    : "Captured from sample image"
+                  : "Not captured"}
               </p>
             ) : (
               <p className="quick-info" style={{ margin: "4px 0 0" }}>
@@ -437,11 +668,11 @@ export default function VerificationPage() {
           </div>
         </section>
 
-        <div className="panel" style={{ marginTop: 16 }}>
+        <div className="panel verification-log-panel" style={{ marginTop: 16 }}>
           <p style={{ margin: "0 0 8px", fontWeight: 600 }}>Recent Verification Logs</p>
-          <div style={{ display: "grid", gap: 8 }}>
+          <div className="verification-log-list">
             {logs.slice(0, 5).map((entry) => (
-              <div key={`${entry.timestamp}-${entry.method}`} className="inline-row">
+              <div key={`${entry.timestamp}-${entry.method}`} className="inline-row verification-log-item">
                 <span>
                   {entry.method} - {entry.result}
                 </span>

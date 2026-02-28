@@ -5,9 +5,19 @@ import { DataTable } from "@/components/data-table";
 import { RoleShell } from "@/components/role-shell";
 import { StatCard } from "@/components/stat-card";
 import { formatDateTime } from "@/lib/format";
-import { addAuditEvent, addOrUpdateCourse, getCoursesState, getEnrollmentsState } from "@/lib/portal-state";
+import {
+  addAuditEvent,
+  addCourseLesson,
+  addCourseModule,
+  addOrUpdateCourse,
+  getCourseBlueprint,
+  getCoursesState,
+  getEnrollmentsState,
+  removeCourseLesson,
+  removeCourseModule,
+} from "@/lib/portal-state";
 import { appMeta, courseCategories } from "@/lib/seed-data";
-import type { Course } from "@/types/domain";
+import type { Course, CourseBlueprint, CourseLessonType } from "@/types/domain";
 
 type CourseLevel = NonNullable<Course["level"]>;
 type CourseStatus = NonNullable<Course["status"]>;
@@ -24,6 +34,20 @@ interface CourseFormState {
   status: CourseStatus;
 }
 
+interface ModuleFormState {
+  title: string;
+  objective: string;
+}
+
+interface LessonFormState {
+  moduleId: string;
+  title: string;
+  type: CourseLessonType;
+  durationMinutes: string;
+  resourcePath: string;
+  notes: string;
+}
+
 const defaultCourseForm: CourseFormState = {
   title: "",
   category: courseCategories[0],
@@ -34,6 +58,20 @@ const defaultCourseForm: CourseFormState = {
   thumbnail: "/assets/education/course-computer.jpg",
   summary: "",
   status: "active",
+};
+
+const defaultModuleForm: ModuleFormState = {
+  title: "",
+  objective: "",
+};
+
+const defaultLessonForm: LessonFormState = {
+  moduleId: "",
+  title: "",
+  type: "reading",
+  durationMinutes: "20",
+  resourcePath: "",
+  notes: "",
 };
 
 function buildCourseId(existing: Course[]): string {
@@ -66,6 +104,9 @@ function formFromCourse(course: Course): CourseFormState {
 }
 
 export default function CourseManagementPage() {
+  const initialBuilderCourseId = getCoursesState()[0]?.id ?? "";
+  const initialBlueprint = initialBuilderCourseId ? getCourseBlueprint(initialBuilderCourseId) : null;
+
   const [courses, setCourses] = useState(getCoursesState);
   const [enrollments] = useState(getEnrollmentsState);
   const [form, setForm] = useState<CourseFormState>(defaultCourseForm);
@@ -74,6 +115,13 @@ export default function CourseManagementPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | CourseStatus>("all");
   const [notice, setNotice] = useState<string | null>(null);
+  const [builderCourseId, setBuilderCourseId] = useState(initialBuilderCourseId);
+  const [blueprint, setBlueprint] = useState<CourseBlueprint | null>(initialBlueprint);
+  const [moduleForm, setModuleForm] = useState<ModuleFormState>(defaultModuleForm);
+  const [lessonForm, setLessonForm] = useState<LessonFormState>({
+    ...defaultLessonForm,
+    moduleId: initialBlueprint?.modules[0]?.id ?? "",
+  });
 
   const enrolledByCourse = useMemo(() => {
     const grouped = new Map<string, number>();
@@ -110,6 +158,25 @@ export default function CourseManagementPage() {
       .slice(0, 1);
     return sorted[0];
   }, [courses, enrolledByCourse]);
+
+  const currentBuilderCourse = useMemo(
+    () => courses.find((course) => course.id === builderCourseId) ?? null,
+    [builderCourseId, courses],
+  );
+
+  function applyBlueprint(nextBlueprint: CourseBlueprint | null): void {
+    setBlueprint(nextBlueprint);
+    setLessonForm((previous) => {
+      if (!nextBlueprint || nextBlueprint.modules.length === 0) {
+        if (previous.moduleId === "") return previous;
+        return { ...previous, moduleId: "" };
+      }
+      if (nextBlueprint.modules.some((module) => module.id === previous.moduleId)) {
+        return previous;
+      }
+      return { ...previous, moduleId: nextBlueprint.modules[0].id };
+    });
+  }
 
   function resetForm(): void {
     setForm(defaultCourseForm);
@@ -150,6 +217,8 @@ export default function CourseManagementPage() {
 
     const next = addOrUpdateCourse(nextCourse);
     setCourses(next);
+    setBuilderCourseId(nextCourse.id);
+    applyBlueprint(getCourseBlueprint(nextCourse.id));
     setNotice(
       editingCourseId
         ? `Course ${nextCourse.id} updated successfully.`
@@ -168,6 +237,8 @@ export default function CourseManagementPage() {
   function handleEdit(course: Course): void {
     setEditingCourseId(course.id);
     setForm(formFromCourse(course));
+    setBuilderCourseId(course.id);
+    applyBlueprint(getCourseBlueprint(course.id));
     setNotice(`Editing ${course.id}.`);
   }
 
@@ -192,6 +263,112 @@ export default function CourseManagementPage() {
         status: nextStatus,
       }));
     }
+  }
+
+  function handleAddModule(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+
+    if (!builderCourseId) {
+      setNotice("Select a course before adding modules.");
+      return;
+    }
+
+    const title = moduleForm.title.trim();
+    if (!title) {
+      setNotice("Module title is required.");
+      return;
+    }
+
+    const nextBlueprint = addCourseModule(builderCourseId, {
+      title,
+      objective: moduleForm.objective.trim(),
+    });
+    applyBlueprint(nextBlueprint);
+    setModuleForm(defaultModuleForm);
+    setLessonForm((previous) => ({
+      ...previous,
+      moduleId: previous.moduleId || nextBlueprint.modules[nextBlueprint.modules.length - 1]?.id || "",
+    }));
+    setNotice(`Module '${title}' added to ${builderCourseId}.`);
+    addAuditEvent({
+      action: "course-created",
+      actor: "Admin Officer",
+      result: "success",
+      target: builderCourseId,
+      details: `Curriculum module added: ${title}`,
+    });
+  }
+
+  function handleAddLesson(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+
+    if (!builderCourseId) {
+      setNotice("Select a course before adding lessons.");
+      return;
+    }
+
+    if (!lessonForm.moduleId) {
+      setNotice("Create or choose a module before adding a lesson.");
+      return;
+    }
+
+    const title = lessonForm.title.trim();
+    if (!title) {
+      setNotice("Lesson title is required.");
+      return;
+    }
+
+    const nextBlueprint = addCourseLesson(builderCourseId, {
+      moduleId: lessonForm.moduleId,
+      title,
+      type: lessonForm.type,
+      durationMinutes: Number(lessonForm.durationMinutes) || 20,
+      resourcePath: lessonForm.resourcePath.trim(),
+      notes: lessonForm.notes.trim(),
+    });
+
+    applyBlueprint(nextBlueprint);
+    setLessonForm((previous) => ({
+      ...defaultLessonForm,
+      moduleId: previous.moduleId,
+      type: previous.type,
+    }));
+    setNotice(`Lesson '${title}' added successfully.`);
+    addAuditEvent({
+      action: "course-created",
+      actor: "Admin Officer",
+      result: "success",
+      target: builderCourseId,
+      details: `Lesson added: ${title}`,
+    });
+  }
+
+  function handleRemoveModule(moduleId: string): void {
+    if (!builderCourseId) return;
+    const nextBlueprint = removeCourseModule(builderCourseId, moduleId);
+    applyBlueprint(nextBlueprint);
+    setNotice(`Module ${moduleId} removed.`);
+    addAuditEvent({
+      action: "course-created",
+      actor: "Admin Officer",
+      result: "success",
+      target: builderCourseId,
+      details: `Module removed: ${moduleId}`,
+    });
+  }
+
+  function handleRemoveLesson(moduleId: string, lessonId: string): void {
+    if (!builderCourseId) return;
+    const nextBlueprint = removeCourseLesson(builderCourseId, moduleId, lessonId);
+    applyBlueprint(nextBlueprint);
+    setNotice(`Lesson ${lessonId} removed.`);
+    addAuditEvent({
+      action: "course-created",
+      actor: "Admin Officer",
+      result: "success",
+      target: builderCourseId,
+      details: `Lesson removed: ${lessonId}`,
+    });
   }
 
   return (
@@ -337,6 +514,192 @@ export default function CourseManagementPage() {
         </form>
 
         {notice ? <p className="status-ok" style={{ marginTop: 12 }}>{notice}</p> : null}
+      </section>
+
+      <section className="panel">
+        <div className="inline-row" style={{ marginBottom: 12 }}>
+          <h2 className="section-title" style={{ marginBottom: 0 }}>
+            Curriculum Builder
+          </h2>
+          <label style={{ minWidth: 280 }}>
+            Course
+            <select
+              className="select"
+              value={builderCourseId}
+              onChange={(event) => {
+                const nextCourseId = event.target.value;
+                setBuilderCourseId(nextCourseId);
+                applyBlueprint(getCourseBlueprint(nextCourseId));
+              }}
+            >
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.id} - {course.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <p className="quick-info" style={{ marginBottom: 14 }}>
+          Build modules and lessons for learner delivery pages. {currentBuilderCourse ? `Editing: ${currentBuilderCourse.title}.` : ""}
+        </p>
+
+        <div className="builder-grid">
+          <article className="builder-card">
+            <h3 style={{ marginBottom: 10 }}>Add Module</h3>
+            <form style={{ display: "grid", gap: 10 }} onSubmit={handleAddModule}>
+              <label>
+                Module Title
+                <input
+                  className="input"
+                  value={moduleForm.title}
+                  onChange={(event) => setModuleForm((previous) => ({ ...previous, title: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                Learning Objective
+                <textarea
+                  className="textarea"
+                  rows={3}
+                  value={moduleForm.objective}
+                  onChange={(event) => setModuleForm((previous) => ({ ...previous, objective: event.target.value }))}
+                  placeholder="What should learners achieve in this module?"
+                />
+              </label>
+              <button type="submit" className="button-primary">
+                Add Module
+              </button>
+            </form>
+          </article>
+
+          <article className="builder-card">
+            <h3 style={{ marginBottom: 10 }}>Add Lesson</h3>
+            <form style={{ display: "grid", gap: 10 }} onSubmit={handleAddLesson}>
+              <label>
+                Module
+                <select
+                  className="select"
+                  value={lessonForm.moduleId}
+                  onChange={(event) => setLessonForm((previous) => ({ ...previous, moduleId: event.target.value }))}
+                  required
+                >
+                  {blueprint?.modules.length ? null : <option value="">No module available</option>}
+                  {blueprint?.modules.map((module) => (
+                    <option key={module.id} value={module.id}>
+                      {module.id} - {module.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Lesson Title
+                <input
+                  className="input"
+                  value={lessonForm.title}
+                  onChange={(event) => setLessonForm((previous) => ({ ...previous, title: event.target.value }))}
+                  required
+                />
+              </label>
+              <div className="grid-2">
+                <label>
+                  Lesson Type
+                  <select
+                    className="select"
+                    value={lessonForm.type}
+                    onChange={(event) =>
+                      setLessonForm((previous) => ({ ...previous, type: event.target.value as CourseLessonType }))
+                    }
+                  >
+                    <option value="reading">Reading</option>
+                    <option value="video">Video</option>
+                    <option value="exercise">Exercise</option>
+                    <option value="assessment">Assessment</option>
+                  </select>
+                </label>
+                <label>
+                  Duration (minutes)
+                  <input
+                    className="input"
+                    type="number"
+                    min="5"
+                    value={lessonForm.durationMinutes}
+                    onChange={(event) => setLessonForm((previous) => ({ ...previous, durationMinutes: event.target.value }))}
+                    required
+                  />
+                </label>
+              </div>
+              <label>
+                Resource Path (optional)
+                <input
+                  className="input"
+                  value={lessonForm.resourcePath}
+                  onChange={(event) => setLessonForm((previous) => ({ ...previous, resourcePath: event.target.value }))}
+                  placeholder="/assets/education/course-computer.jpg or /content/module-1.pdf"
+                />
+              </label>
+              <label>
+                Lesson Notes (optional)
+                <textarea
+                  className="textarea"
+                  rows={2}
+                  value={lessonForm.notes}
+                  onChange={(event) => setLessonForm((previous) => ({ ...previous, notes: event.target.value }))}
+                  placeholder="Facilitator instructions or offline delivery notes."
+                />
+              </label>
+              <button type="submit" className="button-primary" disabled={!blueprint?.modules.length}>
+                Add Lesson
+              </button>
+            </form>
+          </article>
+        </div>
+
+        <div className="builder-list">
+          {blueprint?.modules.length ? (
+            blueprint.modules.map((module) => (
+              <article key={module.id} className="builder-module">
+                <div className="inline-row" style={{ marginBottom: 8 }}>
+                  <h3 style={{ marginBottom: 0 }}>{`${module.id} - ${module.title}`}</h3>
+                  <button type="button" className="button-soft" onClick={() => handleRemoveModule(module.id)}>
+                    Remove Module
+                  </button>
+                </div>
+                <p className="quick-info" style={{ marginTop: 0 }}>
+                  {module.objective ?? "No module objective defined yet."}
+                </p>
+                {module.lessons.length ? (
+                  <ul className="builder-lesson-list">
+                    {module.lessons.map((lesson) => (
+                      <li key={lesson.id} className="builder-lesson">
+                        <div>
+                          <strong>{`${lesson.id} - ${lesson.title}`}</strong>
+                          <p className="quick-info" style={{ margin: "4px 0 0" }}>
+                            {`${lesson.type} | ${lesson.durationMinutes} min${
+                              lesson.resourcePath ? ` | Resource: ${lesson.resourcePath}` : ""
+                            }`}
+                          </p>
+                        </div>
+                        <button type="button" className="button-soft" onClick={() => handleRemoveLesson(module.id, lesson.id)}>
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="quick-info">No lessons added yet for this module.</p>
+                )}
+              </article>
+            ))
+          ) : (
+            <article className="builder-module">
+              <p className="quick-info" style={{ margin: 0 }}>
+                No modules configured yet. Add your first module to begin the course structure.
+              </p>
+            </article>
+          )}
+        </div>
       </section>
 
       <section className="panel">

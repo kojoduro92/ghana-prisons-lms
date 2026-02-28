@@ -2,6 +2,7 @@ import type {
   AdminDashboardStats,
   CertificateRecord,
   Course,
+  CourseBlueprint,
   Enrollment,
   InmateProfile,
   ManagementAnalyticsSnapshot,
@@ -101,6 +102,117 @@ export const topRatedCourses: Course[] = [
     durationHours: 16,
     status: "active",
     updatedAt: "2026-02-19T10:05:00.000Z",
+  },
+];
+
+export const courseBlueprints: CourseBlueprint[] = [
+  {
+    courseId: "C-001",
+    updatedAt: "2026-02-24T09:30:00.000Z",
+    modules: [
+      {
+        id: "M-001",
+        title: "Digital Foundations",
+        objective: "Build confidence with computers, file handling, and core office tools.",
+        lessons: [
+          { id: "L-001", title: "Computer Basics and Safe Startup", type: "video", durationMinutes: 28 },
+          { id: "L-002", title: "Typing, Documents, and File Storage", type: "exercise", durationMinutes: 35 },
+        ],
+      },
+      {
+        id: "M-002",
+        title: "Internet and Productivity",
+        objective: "Use web and productivity tools safely for learning and work.",
+        lessons: [
+          { id: "L-003", title: "Internet Navigation and Safety", type: "reading", durationMinutes: 22 },
+          { id: "L-004", title: "Spreadsheet and Email Practice", type: "assessment", durationMinutes: 30 },
+        ],
+      },
+    ],
+  },
+  {
+    courseId: "C-002",
+    updatedAt: "2026-02-23T12:10:00.000Z",
+    modules: [
+      {
+        id: "M-001",
+        title: "Core Language Skills",
+        objective: "Strengthen reading and writing for daily communication.",
+        lessons: [
+          { id: "L-001", title: "Sentence Structure and Vocabulary", type: "reading", durationMinutes: 24 },
+          { id: "L-002", title: "Listening and Conversation Practice", type: "exercise", durationMinutes: 32 },
+        ],
+      },
+    ],
+  },
+  {
+    courseId: "C-003",
+    updatedAt: "2026-02-21T15:00:00.000Z",
+    modules: [
+      {
+        id: "M-001",
+        title: "Business Ideation",
+        objective: "Identify feasible business opportunities and customer needs.",
+        lessons: [
+          { id: "L-001", title: "Opportunity Discovery", type: "video", durationMinutes: 26 },
+          { id: "L-002", title: "Market Needs Mapping", type: "exercise", durationMinutes: 34 },
+        ],
+      },
+      {
+        id: "M-002",
+        title: "Planning and Operations",
+        objective: "Create a practical, low-risk startup plan.",
+        lessons: [
+          { id: "L-003", title: "Budget and Resource Planning", type: "reading", durationMinutes: 20 },
+          { id: "L-004", title: "Pitch and Assessment", type: "assessment", durationMinutes: 28 },
+        ],
+      },
+    ],
+  },
+  {
+    courseId: "C-004",
+    updatedAt: "2026-02-22T08:40:00.000Z",
+    modules: [
+      {
+        id: "M-001",
+        title: "Workshop Safety and Tools",
+        objective: "Operate workshop tools safely with correct measurements.",
+        lessons: [
+          { id: "L-001", title: "Safety Standards and PPE", type: "reading", durationMinutes: 18 },
+          { id: "L-002", title: "Measurement and Cutting Practice", type: "exercise", durationMinutes: 40 },
+        ],
+      },
+    ],
+  },
+  {
+    courseId: "C-005",
+    updatedAt: "2026-02-20T11:25:00.000Z",
+    modules: [
+      {
+        id: "M-001",
+        title: "Team Coordination",
+        objective: "Lead daily work teams with clarity and accountability.",
+        lessons: [
+          { id: "L-001", title: "Role Assignment and Delegation", type: "video", durationMinutes: 22 },
+          { id: "L-002", title: "Conflict Handling Scenarios", type: "assessment", durationMinutes: 27 },
+        ],
+      },
+    ],
+  },
+  {
+    courseId: "C-006",
+    updatedAt: "2026-02-19T10:05:00.000Z",
+    modules: [
+      {
+        id: "M-001",
+        title: "Customer Interaction",
+        objective: "Handle customer communication professionally.",
+        lessons: [
+          { id: "L-001", title: "Customer Needs and Value Statement", type: "reading", durationMinutes: 20 },
+          { id: "L-002", title: "Sales Dialogue Practice", type: "exercise", durationMinutes: 30 },
+        ],
+      },
+    ],
   },
 ];
 

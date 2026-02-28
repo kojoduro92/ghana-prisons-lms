@@ -51,6 +51,30 @@ export interface Course {
   updatedAt?: string;
 }
 
+export type CourseLessonType = "video" | "reading" | "exercise" | "assessment";
+
+export interface CourseLesson {
+  id: string;
+  title: string;
+  type: CourseLessonType;
+  durationMinutes: number;
+  resourcePath?: string;
+  notes?: string;
+}
+
+export interface CourseModule {
+  id: string;
+  title: string;
+  objective?: string;
+  lessons: CourseLesson[];
+}
+
+export interface CourseBlueprint {
+  courseId: string;
+  modules: CourseModule[];
+  updatedAt: string;
+}
+
 export interface Enrollment {
   studentId: string;
   courseId: string;

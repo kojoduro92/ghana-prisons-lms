@@ -6,6 +6,8 @@ import type {
   AuditEvent,
   CertificateRecord,
   Course,
+  CourseBlueprint,
+  CourseModule,
   Enrollment,
   InmateProfile,
   ReportRecord,
@@ -15,6 +17,7 @@ import type {
 } from "@/types/domain";
 import {
   certificates as seededCertificates,
+  courseBlueprints as seededCourseBlueprints,
   enrollments as seededEnrollments,
   inmates as seededInmates,
   reports as seededReports,
@@ -76,6 +79,70 @@ function normalizeCourse(course: Course): Course {
   };
 }
 
+function buildSequentialId(prefix: string, ids: string[]): string {
+  const max = ids.reduce((currentMax, id) => {
+    const value = Number(id.replace(`${prefix}-`, ""));
+    return Number.isFinite(value) ? Math.max(currentMax, value) : currentMax;
+  }, 0);
+  return `${prefix}-${String(max + 1).padStart(3, "0")}`;
+}
+
+function normalizeCourseBlueprint(blueprint: CourseBlueprint): CourseBlueprint {
+  const modules = (blueprint.modules ?? []).map((module, moduleIndex) => {
+    const moduleId = module.id?.trim() || `M-${String(moduleIndex + 1).padStart(3, "0")}`;
+    const lessons = (module.lessons ?? []).map((lesson, lessonIndex) => ({
+      id: lesson.id?.trim() || `L-${String(lessonIndex + 1).padStart(3, "0")}`,
+      title: lesson.title.trim(),
+      type: lesson.type,
+      durationMinutes:
+        typeof lesson.durationMinutes === "number" && Number.isFinite(lesson.durationMinutes)
+          ? Math.max(5, Math.round(lesson.durationMinutes))
+          : 20,
+      resourcePath: lesson.resourcePath?.trim() || undefined,
+      notes: lesson.notes?.trim() || undefined,
+    }));
+
+    return {
+      id: moduleId,
+      title: module.title.trim(),
+      objective: module.objective?.trim() || undefined,
+      lessons,
+    };
+  });
+
+  return {
+    courseId: blueprint.courseId,
+    modules,
+    updatedAt: blueprint.updatedAt ?? new Date().toISOString(),
+  };
+}
+
+function createDefaultCourseBlueprint(courseId: string): CourseBlueprint {
+  const course = getCoursesState().find((item) => item.id === courseId);
+  const fallbackTitle = course?.title ?? "New Course";
+
+  return {
+    courseId,
+    updatedAt: new Date().toISOString(),
+    modules: [
+      {
+        id: "M-001",
+        title: "Introduction Module",
+        objective: `Orientation and first learning steps for ${fallbackTitle}.`,
+        lessons: [
+          {
+            id: "L-001",
+            title: "Course Orientation",
+            type: "reading",
+            durationMinutes: 20,
+            notes: "Introduce outcomes, assessment criteria, and learner expectations.",
+          },
+        ],
+      },
+    ],
+  };
+}
+
 export function getInmatesState(): InmateProfile[] {
   const stored = browserStorage.loadState<InmateProfile[]>(STORAGE_KEYS.inmates);
 
@@ -125,6 +192,129 @@ export function addOrUpdateCourse(nextCourse: Course): Course[] {
 
   browserStorage.saveState(STORAGE_KEYS.courses, next);
   return next;
+}
+
+export function getCourseBlueprintsState(): CourseBlueprint[] {
+  const stored = browserStorage.loadState<CourseBlueprint[]>(STORAGE_KEYS.courseBlueprints);
+
+  if (stored && stored.length > 0) {
+    const normalized = stored.map(normalizeCourseBlueprint);
+    browserStorage.saveState(STORAGE_KEYS.courseBlueprints, normalized);
+    return normalized;
+  }
+
+  const normalizedSeeds = seededCourseBlueprints.map(normalizeCourseBlueprint);
+  browserStorage.saveState(STORAGE_KEYS.courseBlueprints, normalizedSeeds);
+  return normalizedSeeds;
+}
+
+export function getCourseBlueprint(courseId: string): CourseBlueprint {
+  const current = getCourseBlueprintsState();
+  const existing = current.find((item) => item.courseId === courseId);
+
+  if (existing) {
+    return existing;
+  }
+
+  const fallback = createDefaultCourseBlueprint(courseId);
+  const next = [fallback, ...current];
+  browserStorage.saveState(STORAGE_KEYS.courseBlueprints, next);
+  return fallback;
+}
+
+export function saveCourseBlueprint(courseId: string, modules: CourseModule[]): CourseBlueprint {
+  const current = getCourseBlueprintsState();
+  const normalized: CourseBlueprint = normalizeCourseBlueprint({
+    courseId,
+    modules,
+    updatedAt: new Date().toISOString(),
+  });
+  const withoutCurrent = current.filter((item) => item.courseId !== courseId);
+  const next = [normalized, ...withoutCurrent];
+  browserStorage.saveState(STORAGE_KEYS.courseBlueprints, next);
+  return normalized;
+}
+
+export function addCourseModule(
+  courseId: string,
+  input: {
+    title: string;
+    objective?: string;
+  },
+): CourseBlueprint {
+  const blueprint = getCourseBlueprint(courseId);
+  const moduleId = buildSequentialId(
+    "M",
+    blueprint.modules.map((module) => module.id),
+  );
+
+  const nextModules: CourseModule[] = [
+    ...blueprint.modules,
+    {
+      id: moduleId,
+      title: input.title.trim(),
+      objective: input.objective?.trim() || undefined,
+      lessons: [],
+    },
+  ];
+
+  return saveCourseBlueprint(courseId, nextModules);
+}
+
+export function addCourseLesson(
+  courseId: string,
+  input: {
+    moduleId: string;
+    title: string;
+    type: "video" | "reading" | "exercise" | "assessment";
+    durationMinutes: number;
+    resourcePath?: string;
+    notes?: string;
+  },
+): CourseBlueprint {
+  const blueprint = getCourseBlueprint(courseId);
+  const nextModules = blueprint.modules.map((module) => {
+    if (module.id !== input.moduleId) return module;
+
+    const lessonId = buildSequentialId(
+      "L",
+      module.lessons.map((lesson) => lesson.id),
+    );
+    return {
+      ...module,
+      lessons: [
+        ...module.lessons,
+        {
+          id: lessonId,
+          title: input.title.trim(),
+          type: input.type,
+          durationMinutes: Math.max(5, Math.round(input.durationMinutes)),
+          resourcePath: input.resourcePath?.trim() || undefined,
+          notes: input.notes?.trim() || undefined,
+        },
+      ],
+    };
+  });
+
+  return saveCourseBlueprint(courseId, nextModules);
+}
+
+export function removeCourseModule(courseId: string, moduleId: string): CourseBlueprint {
+  const blueprint = getCourseBlueprint(courseId);
+  const nextModules = blueprint.modules.filter((module) => module.id !== moduleId);
+  return saveCourseBlueprint(courseId, nextModules);
+}
+
+export function removeCourseLesson(courseId: string, moduleId: string, lessonId: string): CourseBlueprint {
+  const blueprint = getCourseBlueprint(courseId);
+  const nextModules = blueprint.modules.map((module) => {
+    if (module.id !== moduleId) return module;
+    return {
+      ...module,
+      lessons: module.lessons.filter((lesson) => lesson.id !== lessonId),
+    };
+  });
+  return saveCourseBlueprint(courseId, nextModules);
 }
 
 export function getEnrollmentsState(): Enrollment[] {

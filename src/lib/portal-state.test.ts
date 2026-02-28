@@ -3,6 +3,8 @@ import { inmates as seededInmates } from "@/lib/seed-data";
 import {
   addAttendanceEvent,
   addAuditEvent,
+  addCourseLesson,
+  addCourseModule,
   addOrUpdateCourse,
   addReportRecord,
   addOrUpdateInmate,
@@ -13,6 +15,7 @@ import {
   getAttendanceEventsState,
   getAuditEventsState,
   getCertificatesForStudent,
+  getCourseBlueprint,
   getCoursesState,
   getLearningSummaryForStudent,
   getEnrollmentsForStudent,
@@ -22,6 +25,8 @@ import {
   getReportsState,
   getSessionDurationMinutes,
   issueCertificate,
+  removeCourseLesson,
+  removeCourseModule,
   summarizeAttendance,
   updateEnrollmentProgress,
 } from "@/lib/portal-state";
@@ -177,6 +182,50 @@ describe("portal state", () => {
     const stored = getCoursesState();
     expect(next[0].id).toBe("C-999");
     expect(stored[0].title).toBe("Project Management Basics");
+  });
+
+  it("builds and persists course curriculum modules and lessons", () => {
+    const addedModule = addCourseModule("C-001", {
+      title: "Digital Practice Lab",
+      objective: "Hands-on exercises and guided practice.",
+    });
+
+    const createdModule = addedModule.modules.find((module) => module.title === "Digital Practice Lab");
+    expect(createdModule).toBeDefined();
+
+    const withLesson = addCourseLesson("C-001", {
+      moduleId: createdModule?.id ?? "",
+      title: "Practice Session A",
+      type: "exercise",
+      durationMinutes: 30,
+      notes: "Supervised computer lab activity.",
+    });
+
+    const refreshed = getCourseBlueprint("C-001");
+    const moduleFromStorage = refreshed.modules.find((module) => module.id === createdModule?.id);
+    expect(moduleFromStorage?.lessons.some((lesson) => lesson.title === "Practice Session A")).toBe(true);
+    expect(withLesson.courseId).toBe("C-001");
+  });
+
+  it("removes course lesson and module from curriculum", () => {
+    const base = addCourseModule("C-002", {
+      title: "Communication Studio",
+      objective: "Applied communication sessions.",
+    });
+    const moduleId = base.modules[base.modules.length - 1]?.id ?? "";
+    const withLesson = addCourseLesson("C-002", {
+      moduleId,
+      title: "Dialogue Drill",
+      type: "exercise",
+      durationMinutes: 25,
+    });
+    const lessonId = withLesson.modules.find((module) => module.id === moduleId)?.lessons[0]?.id ?? "";
+
+    const afterLessonRemoval = removeCourseLesson("C-002", moduleId, lessonId);
+    expect(afterLessonRemoval.modules.find((module) => module.id === moduleId)?.lessons.length).toBe(0);
+
+    const afterModuleRemoval = removeCourseModule("C-002", moduleId);
+    expect(afterModuleRemoval.modules.some((module) => module.id === moduleId)).toBe(false);
   });
 
   it("enrolls student without creating duplicates", () => {

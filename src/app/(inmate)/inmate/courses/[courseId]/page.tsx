@@ -9,6 +9,7 @@ import { useAppShell } from "@/lib/app-shell";
 import {
   addAuditEvent,
   enrollStudentInCourse,
+  getCourseBlueprint,
   getCoursesState,
   getEnrollmentsForStudent,
   updateEnrollmentProgress,
@@ -27,6 +28,7 @@ export default function InmateCourseDetailPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const course = useMemo(() => courses.find((item) => item.id === courseId), [courseId, courses]);
+  const curriculum = useMemo(() => (course ? getCourseBlueprint(course.id) : null), [course]);
   const enrollment = useMemo(
     () => enrollments.find((entry) => entry.courseId === courseId),
     [courseId, enrollments],
@@ -178,6 +180,45 @@ export default function InmateCourseDetailPage() {
             <h3>{typeof enrollment?.latestAssessmentScore === "number" ? `${enrollment.latestAssessmentScore}%` : "-"}</h3>
           </article>
         </div>
+      </section>
+
+      <section className="panel">
+        <h2 className="section-title">Course Curriculum</h2>
+        {curriculum?.modules.length ? (
+          <div className="builder-list">
+            {curriculum.modules.map((module) => (
+              <article key={module.id} className="builder-module">
+                <h3 style={{ marginBottom: 6 }}>{`${module.id} - ${module.title}`}</h3>
+                <p className="quick-info" style={{ marginTop: 0 }}>
+                  {module.objective ?? "No module objective provided."}
+                </p>
+                {module.lessons.length ? (
+                  <ul className="builder-lesson-list">
+                    {module.lessons.map((lesson) => (
+                      <li key={lesson.id} className="builder-lesson">
+                        <div>
+                          <strong>{`${lesson.id} - ${lesson.title}`}</strong>
+                          <p className="quick-info" style={{ margin: "4px 0 0" }}>
+                            {`${lesson.type} | ${lesson.durationMinutes} min`}
+                          </p>
+                          {lesson.notes ? (
+                            <p className="quick-info" style={{ margin: "4px 0 0" }}>
+                              {lesson.notes}
+                            </p>
+                          ) : null}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="quick-info">This module currently has no lessons.</p>
+                )}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="quick-info">Curriculum setup is in progress for this course.</p>
+        )}
       </section>
     </RoleShell>
   );
