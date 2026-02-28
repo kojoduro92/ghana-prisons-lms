@@ -963,6 +963,60 @@ a {
     radial-gradient(circle at 12% 10%, rgba(185, 131, 88, 0.16), transparent 36%);
 }
 
+/* Compatibility styles for older landing markup so hero images never overflow full-page. */
+.landing-hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.landing-hero-visual {
+  display: grid;
+  gap: 10px;
+  grid-template-rows: 1fr 1fr;
+}
+
+.landing-image-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid #d6baa1;
+  min-height: 188px;
+  background: #1f140c;
+}
+
+.landing-image-card-large {
+  min-height: 260px;
+}
+
+.landing-image {
+  object-fit: cover;
+}
+
+.landing-image-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  color: #fff2e2;
+  background: linear-gradient(180deg, rgba(15, 8, 4, 0), rgba(15, 8, 4, 0.8));
+}
+
+.landing-image-overlay h3 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.landing-image-overlay p {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 .landing-hero-copy {
   display: grid;
   align-content: start;
