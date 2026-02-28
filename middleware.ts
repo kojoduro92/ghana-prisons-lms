@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { AUTH_COOKIE_NAME, canAccessPath, parseSerializedSession } from "@/lib/auth";
+import { AUTH_COOKIE_NAME, canAccessPath, hasValidFacilityAccess, parseSerializedSession } from "@/lib/auth";
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -19,6 +19,13 @@ export function middleware(request: NextRequest) {
     loginUrl.searchParams.set("next", nextValue);
     loginUrl.searchParams.set("reason", "role");
     return NextResponse.redirect(loginUrl);
+  }
+
+  if (pathname.startsWith("/inmate") && !hasValidFacilityAccess(session)) {
+    const verifyUrl = new URL("/verify-identity", request.url);
+    verifyUrl.searchParams.set("next", nextValue);
+    verifyUrl.searchParams.set("reason", "entry");
+    return NextResponse.redirect(verifyUrl);
   }
 
   return NextResponse.next();

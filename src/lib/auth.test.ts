@@ -4,6 +4,7 @@ import {
   createSessionFromCredential,
   demoCredentials,
   findDemoCredential,
+  hasValidFacilityAccess,
   parseSerializedSession,
   serializeSession,
 } from "@/lib/auth";
@@ -37,5 +38,20 @@ describe("auth helpers", () => {
   it("enforces role route access", () => {
     expect(canAccessPath("admin", "/admin/dashboard")).toBe(true);
     expect(canAccessPath("admin", "/inmate/dashboard")).toBe(false);
+  });
+
+  it("requires facility access grant for inmate session", () => {
+    const session = createSessionFromCredential(demoCredentials[2]);
+    expect(hasValidFacilityAccess(session)).toBe(false);
+
+    const now = new Date().toISOString();
+    expect(hasValidFacilityAccess({ ...session, facilityEntryGrantedAt: now })).toBe(true);
+  });
+
+  it("does not require facility access grant for admin and management sessions", () => {
+    const adminSession = createSessionFromCredential(demoCredentials[0]);
+    const managementSession = createSessionFromCredential(demoCredentials[1]);
+    expect(hasValidFacilityAccess(adminSession)).toBe(true);
+    expect(hasValidFacilityAccess(managementSession)).toBe(true);
   });
 });

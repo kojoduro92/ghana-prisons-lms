@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import type { Role } from "@/types/domain";
+import { BrandLogo } from "@/components/brand-logo";
 
 interface TopNavProps {
   title: string;
@@ -14,12 +16,18 @@ interface TopNavProps {
 export function TopNav({ title, subtitle, userName, activeRole, onSignOut, onSwitchRole }: TopNavProps) {
   return (
     <header className="top-nav">
-      <div>
-        <p className="top-nav-title">{title}</p>
-        {subtitle ? <p className="top-nav-subtitle">{subtitle}</p> : null}
+      <div className="top-nav-left">
+        <BrandLogo size={44} />
+        <div>
+          <p className="top-nav-title">{title}</p>
+          {subtitle ? <p className="top-nav-subtitle">{subtitle}</p> : null}
+        </div>
       </div>
 
       <div className="top-nav-right">
+        <Link href="/landing" className="chip-button chip-link">
+          Portal Home
+        </Link>
         <span className="status-chip">Offline Mode</span>
         <span className="status-chip">Local Secure Server</span>
         <div className="top-nav-role-switch">

@@ -44,6 +44,37 @@ describe("reporting helpers", () => {
 
     expect(rows.length).toBeGreaterThan(0);
     expect(rows[0].courseId).toBeTruthy();
+    expect(rows[0]).toHaveProperty("completionRatePercent");
+  });
+
+  it("builds performance rows with learning activity fields", () => {
+    const rows = buildReportRows({
+      type: "performance",
+      attendanceEvents,
+      enrollments,
+      inmates,
+      scopeStudentId: "GP-10234",
+    });
+
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0]).toHaveProperty("timeSpentMinutes");
+    expect(rows[0]).toHaveProperty("lessonsCompleted");
+    expect(rows[0]).toHaveProperty("assessmentsTaken");
+  });
+
+  it("builds operational summary metrics by month", () => {
+    const rows = buildReportRows({
+      type: "operational-summary",
+      attendanceEvents,
+      enrollments,
+      inmates,
+    });
+
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0]).toHaveProperty("period");
+    expect(rows[0]).toHaveProperty("attendanceEntries");
+    expect(rows[0]).toHaveProperty("attendanceClosurePercent");
+    expect(rows[0]).toHaveProperty("avgProgressPercent");
   });
 
   it("serializes rows to csv", () => {

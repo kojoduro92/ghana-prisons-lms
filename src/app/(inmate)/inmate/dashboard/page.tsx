@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CourseCard } from "@/components/course-card";
 import { ProgressBar } from "@/components/progress-bar";
 import { ProgressDonut } from "@/components/progress-donut";
@@ -17,6 +17,8 @@ import {
   getCertificatesForStudent,
   getCoursesState,
   getEnrollmentsForStudent,
+  getLatestOpenEntry,
+  getSessionDurationMinutes,
   summarizeAttendance,
 } from "@/lib/portal-state";
 import { appMeta } from "@/lib/seed-data";
@@ -53,6 +55,7 @@ export default function InmateDashboardPage() {
       title: course?.title ?? item.courseId,
       subtitle: course?.category ?? "General",
       progress: item.progressPercent,
+      thumbnail: course?.thumbnail,
     };
   });
 
@@ -63,7 +66,27 @@ export default function InmateDashboardPage() {
 
   const [verifiedBy, setVerifiedBy] = useState<AttendanceEvent["verifiedBy"]>("fingerprint");
   const [events, setEvents] = useState(() => getAttendanceEventsForStudent(studentId));
+  const [nowIso, setNowIso] = useState(() => new Date().toISOString());
+  const [attendanceNotice, setAttendanceNotice] = useState<string | null>(null);
   const summary = summarizeAttendance(events);
+  const openEntry = useMemo(() => getLatestOpenEntry(events), [events]);
+  const activeSessionMinutes = openEntry ? getSessionDurationMinutes(openEntry.timestamp, nowIso) : 0;
+  const totalStudyMinutes = useMemo(
+    () => enrollments.reduce((sum, entry) => sum + (entry.timeSpentMinutes ?? 0), 0),
+    [enrollments],
+  );
+
+  useEffect(() => {
+    if (!openEntry) return;
+
+    const timer = window.setInterval(() => {
+      setNowIso(new Date().toISOString());
+    }, 30_000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [openEntry]);
 
   const weeklyActivity = useMemo(() => {
     const generated = buildWeeklyActivity(events, 6);
@@ -74,6 +97,10 @@ export default function InmateDashboardPage() {
   }, [events]);
 
   const completedLessons = useMemo(() => {
+    const trackedLessons = enrollments.reduce((sum, entry) => sum + (entry.lessonsCompleted ?? 0), 0);
+    if (trackedLessons > 0) {
+      return trackedLessons;
+    }
     const progressTotal = enrollments.reduce((sum, entry) => sum + entry.progressPercent, 0);
     return Math.max(0, Math.round(progressTotal / 20));
   }, [enrollments]);
@@ -104,14 +131,26 @@ export default function InmateDashboardPage() {
   }
 
   function handleClockIn(): void {
+    if (openEntry) {
+      setAttendanceNotice("Entry already active. Use Clock Out when leaving the facility.");
+      return;
+    }
+
     const nextEvent = createAttendanceEvent(session, "entry", verifiedBy);
     addAttendanceEvent(nextEvent);
+    setAttendanceNotice("Clock-in recorded.");
     refreshEvents();
   }
 
   function handleClockOut(): void {
+    if (!openEntry) {
+      setAttendanceNotice("No active facility entry found. Clock In first.");
+      return;
+    }
+
     const nextEvent = createExitEvent(session, verifiedBy);
     addAttendanceEvent(nextEvent);
+    setAttendanceNotice("Clock-out recorded and session closed.");
     refreshEvents();
   }
 
@@ -121,7 +160,10 @@ export default function InmateDashboardPage() {
         <div>
           <h1 style={{ marginBottom: 6 }}>Welcome Back, {userName}</h1>
           <p className="quick-info">Student ID: {studentId}</p>
-          <div className="grid-3" style={{ marginTop: 14 }}>
+          <p className="quick-info" style={{ marginTop: 4 }}>
+            Facility: {session?.facilityLocation ?? "Digital Learning Lab"} | Device: {session?.allocatedDeviceType ?? "Tablet"}
+          </p>
+          <div className="grid-4" style={{ marginTop: 14 }}>
             <article className="panel" style={{ padding: 12 }}>
               <p className="quick-info">Active Courses</p>
               <h3>{activeCourses.length}</h3>
@@ -129,6 +171,10 @@ export default function InmateDashboardPage() {
             <article className="panel" style={{ padding: 12 }}>
               <p className="quick-info">Lessons Completed</p>
               <h3>{completedLessons}</h3>
+            </article>
+            <article className="panel" style={{ padding: 12 }}>
+              <p className="quick-info">Hours Studied</p>
+              <h3>{Math.round(totalStudyMinutes / 60)}</h3>
             </article>
             <article className="panel" style={{ padding: 12 }}>
               <p className="quick-info">Certificates Earned</p>
@@ -148,6 +194,29 @@ export default function InmateDashboardPage() {
           <p className="quick-info" style={{ marginBottom: 10 }}>
             Record supervised facility entry and exit events for audit logging.
           </p>
+          {attendanceNotice ? <p className="status-ok">{attendanceNotice}</p> : null}
+          <div className="panel" style={{ padding: 12, marginBottom: 12 }}>
+            <div className="grid-3">
+              <article>
+                <p className="quick-info" style={{ margin: 0 }}>
+                  Facility Status
+                </p>
+                <h3>{openEntry ? "In Session" : "No Active Session"}</h3>
+              </article>
+              <article>
+                <p className="quick-info" style={{ margin: 0 }}>
+                  Entry Started
+                </p>
+                <h3 style={{ fontSize: "1rem" }}>{openEntry ? formatDateTime(openEntry.timestamp) : "-"}</h3>
+              </article>
+              <article>
+                <p className="quick-info" style={{ margin: 0 }}>
+                  Current Duration
+                </p>
+                <h3>{openEntry ? `${activeSessionMinutes} min` : "0 min"}</h3>
+              </article>
+            </div>
+          </div>
           <div className="inline-row" style={{ justifyContent: "flex-start" }}>
             <select
               className="select"
@@ -158,10 +227,10 @@ export default function InmateDashboardPage() {
               <option value="fingerprint">Fingerprint</option>
               <option value="face">Facial Recognition</option>
             </select>
-            <button type="button" className="button-primary" onClick={handleClockIn}>
+            <button type="button" className="button-primary" onClick={handleClockIn} disabled={Boolean(openEntry)}>
               Clock In
             </button>
-            <button type="button" className="button-soft" onClick={handleClockOut}>
+            <button type="button" className="button-soft" onClick={handleClockOut} disabled={!openEntry}>
               Clock Out
             </button>
           </div>
@@ -213,7 +282,14 @@ export default function InmateDashboardPage() {
         </div>
         <div className="grid-4">
           {activeCourses.map((course) => (
-            <CourseCard key={course.id} title={course.title} subtitle={course.subtitle} progress={course.progress} />
+            <article key={course.id} className="panel" style={{ padding: 12 }}>
+              <CourseCard title={course.title} subtitle={course.subtitle} progress={course.progress} imageSrc={course.thumbnail} />
+              <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+                <Link href={`/inmate/courses/${course.id}`} className="button-soft">
+                  Open Course Page
+                </Link>
+              </div>
+            </article>
           ))}
           {activeCourses.length === 0 ? (
             <article className="panel" style={{ padding: 12 }}>

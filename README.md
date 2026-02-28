@@ -83,4 +83,10 @@ npm run test:e2e
 
 - Role routes are server-guarded by role/session checks.
 - Data is seeded and persisted in browser storage for prototype behavior.
+- Biometric enrollment and verification metadata are persisted to `data/biometric-records.json` through local API routes.
+- Built-in device biometrics use WebAuthn when supported by the browser/device.
+- Strict biometric policy is configurable:
+  - `NEXT_PUBLIC_STRICT_BIOMETRIC=true` enforces live camera + successful device biometric.
+  - `NEXT_PUBLIC_STRICT_BIOMETRIC=false` allows fallback/simulated proof.
+  - If unset, strict mode defaults to `true` in production and `false` in development/test.
 - `.vscode/` is gitignored to keep workspace-specific editor config out of commits.

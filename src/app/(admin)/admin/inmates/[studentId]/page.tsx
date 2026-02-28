@@ -163,7 +163,7 @@ export default function InmateProfilePage() {
                     disabled={!canIssue}
                     onClick={() => handleIssueCertificate(enrollment.courseId)}
                   >
-                    Issue Certificate
+                    {canIssue ? "Issue Certificate" : "Pending Completion"}
                   </button>
                 )}
               </div>

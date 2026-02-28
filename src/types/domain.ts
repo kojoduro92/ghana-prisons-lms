@@ -6,6 +6,13 @@ export interface UserSession {
   displayName: string;
   studentId?: string;
   expiresAt: string;
+  lastBiometricVerificationAt?: string;
+  lastBiometricMethod?: "fingerprint" | "face";
+  facilityEntryGrantedAt?: string;
+  facilityEntryMethod?: "fingerprint" | "face";
+  facilitySessionId?: string;
+  facilityLocation?: string;
+  allocatedDeviceType?: "Desktop PC" | "Laptop" | "Tablet";
 }
 
 export interface InmateProfile {
@@ -37,6 +44,11 @@ export interface Course {
   instructor: string;
   rating: number;
   thumbnail: string;
+  summary?: string;
+  level?: "Beginner" | "Intermediate" | "Advanced";
+  durationHours?: number;
+  status?: "active" | "draft" | "archived";
+  updatedAt?: string;
 }
 
 export interface Enrollment {
@@ -44,6 +56,11 @@ export interface Enrollment {
   courseId: string;
   progressPercent: number;
   status: "In Progress" | "Completed";
+  timeSpentMinutes?: number;
+  lessonsCompleted?: number;
+  assessmentsTaken?: number;
+  latestAssessmentScore?: number;
+  lastActivityAt?: string;
 }
 
 export interface ProgressSnapshot {
@@ -109,9 +126,12 @@ export type AuditAction =
   | "inmate-registered"
   | "course-created"
   | "course-enrolled"
+  | "course-progress-updated"
   | "certificate-issued"
   | "report-generated"
-  | "report-exported";
+  | "report-exported"
+  | "state-snapshot-created"
+  | "state-snapshot-restored";
 
 export interface AuditEvent {
   id: string;

@@ -12,6 +12,16 @@ describe("verification flow", () => {
     expect(attempt.result).toBe("success");
   });
 
+  it("supports forced result and custom device id", () => {
+    const attempt = simulateVerificationAttempt("fingerprint", 0.1, {
+      forceResult: "success",
+      deviceId: "tablet-biometric-01",
+    });
+
+    expect(attempt.result).toBe("success");
+    expect(attempt.deviceId).toBe("tablet-biometric-01");
+  });
+
   it("keeps most recent logs first and capped", () => {
     const first = simulateVerificationAttempt("face", 0.9);
     const second = simulateVerificationAttempt("fingerprint", 0.9);

@@ -14,12 +14,16 @@ import {
   getAuditEventsState,
   getCertificatesForStudent,
   getCoursesState,
+  getLearningSummaryForStudent,
   getEnrollmentsForStudent,
   getEnrollmentsState,
   getInmatesState,
+  getLatestOpenEntry,
   getReportsState,
+  getSessionDurationMinutes,
   issueCertificate,
   summarizeAttendance,
+  updateEnrollmentProgress,
 } from "@/lib/portal-state";
 
 beforeEach(() => {
@@ -97,6 +101,43 @@ describe("portal state", () => {
     expect(event.studentId).toBe("GP-77777");
   });
 
+  it("tracks open attendance sessions until clock-out", () => {
+    const now = Date.now();
+    const events = [
+      {
+        studentId: "GP-1",
+        type: "entry" as const,
+        facility: "Lab",
+        timestamp: new Date(now - 25 * 60_000).toISOString(),
+        verifiedBy: "face" as const,
+      },
+      {
+        studentId: "GP-1",
+        type: "exit" as const,
+        facility: "Lab",
+        timestamp: new Date(now - 20 * 60_000).toISOString(),
+        verifiedBy: "face" as const,
+      },
+      {
+        studentId: "GP-1",
+        type: "entry" as const,
+        facility: "Lab",
+        timestamp: new Date(now - 12 * 60_000).toISOString(),
+        verifiedBy: "fingerprint" as const,
+      },
+    ];
+
+    const open = getLatestOpenEntry(events);
+    expect(open?.type).toBe("entry");
+    expect(open?.verifiedBy).toBe("fingerprint");
+  });
+
+  it("calculates session duration in minutes", () => {
+    const start = "2026-02-28T10:00:00.000Z";
+    const end = "2026-02-28T10:37:00.000Z";
+    expect(getSessionDurationMinutes(start, end)).toBe(37);
+  });
+
   it("adds report metadata records to local history", () => {
     const next = addReportRecord("attendance", "Admin Officer", {
       scopeStudentId: "GP-10234",
@@ -149,6 +190,44 @@ describe("portal state", () => {
     expect(getEnrollmentsState().some((entry) => entry.studentId === "GP-10234" && entry.courseId === "C-999")).toBe(
       true,
     );
+  });
+
+  it("updates progress, lessons, and assessment details for an enrolled course", () => {
+    const next = updateEnrollmentProgress({
+      studentId: "GP-10234",
+      courseId: "C-001",
+      activityMinutes: 40,
+      lessonsDelta: 1,
+      progressDelta: 5,
+      assessmentScore: 83,
+    });
+    const updated = next.find((entry) => entry.studentId === "GP-10234" && entry.courseId === "C-001");
+
+    expect(updated).toBeDefined();
+    expect(updated?.progressPercent).toBeGreaterThan(68);
+    expect(updated?.timeSpentMinutes).toBeGreaterThan(0);
+    expect(updated?.lessonsCompleted).toBeGreaterThan(0);
+    expect(updated?.assessmentsTaken).toBeGreaterThan(0);
+    expect(updated?.latestAssessmentScore).toBe(83);
+    expect(updated?.lastActivityAt).toBeDefined();
+  });
+
+  it("builds learning summary metrics for student analytics", () => {
+    updateEnrollmentProgress({
+      studentId: "GP-10234",
+      courseId: "C-002",
+      activityMinutes: 30,
+      lessonsDelta: 1,
+      progressDelta: 4,
+      assessmentScore: 79,
+    });
+
+    const summary = getLearningSummaryForStudent("GP-10234");
+    expect(summary.activeCourses).toBeGreaterThan(0);
+    expect(summary.totalMinutes).toBeGreaterThan(0);
+    expect(summary.lessonsCompleted).toBeGreaterThan(0);
+    expect(summary.assessmentsTaken).toBeGreaterThan(0);
+    expect(summary.averageAssessmentScore).not.toBeNull();
   });
 
   it("issues certificates and persists them for an inmate", () => {

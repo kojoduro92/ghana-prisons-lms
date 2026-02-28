@@ -2,6 +2,7 @@ import type { Role, UserSession } from "@/types/domain";
 
 export const AUTH_COOKIE_NAME = "gplp_session";
 export const SESSION_DURATION_SECONDS = 60 * 60 * 12;
+export const FACILITY_ACCESS_WINDOW_SECONDS = 60 * 60 * 8;
 
 export interface DemoCredential {
   username: string;
@@ -95,4 +96,25 @@ export function parseSerializedSession(raw: string | undefined): UserSession | n
   } catch {
     return null;
   }
+}
+
+export function hasValidFacilityAccess(session: UserSession, nowMs = Date.now()): boolean {
+  if (session.role !== "inmate") {
+    return true;
+  }
+
+  if (!session.facilityEntryGrantedAt) {
+    return false;
+  }
+
+  const grantedAt = new Date(session.facilityEntryGrantedAt).getTime();
+  if (!Number.isFinite(grantedAt)) {
+    return false;
+  }
+
+  if (grantedAt > nowMs) {
+    return false;
+  }
+
+  return nowMs - grantedAt <= FACILITY_ACCESS_WINDOW_SECONDS * 1000;
 }

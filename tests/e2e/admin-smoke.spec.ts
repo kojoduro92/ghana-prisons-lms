@@ -8,7 +8,7 @@ test("admin smoke flow", async ({ page }) => {
     expectedHomePath: /\/admin\/dashboard/,
   });
 
-  await page.getByRole("link", { name: "Attendance Logs" }).click();
+  await page.goto("/admin/attendance");
   await expect(page).toHaveURL(/\/admin\/attendance/);
   await expect(page.getByRole("heading", { name: "Facility Entry / Exit Events" })).toBeVisible();
 

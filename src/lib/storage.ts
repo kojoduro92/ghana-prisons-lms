@@ -5,6 +5,7 @@ import type { StorageAdapter } from "@/types/domain";
 export const STORAGE_KEYS = {
   session: "gplp.session",
   selectedInmate: "gplp.selected-inmate",
+  deviceBiometricCredentialId: "gplp.device.biometric.credential-id",
   verificationLogs: "gplp.verification.logs",
   attendanceEvents: "gplp.attendance.events",
   auditEvents: "gplp.audit.events",

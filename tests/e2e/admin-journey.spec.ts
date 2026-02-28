@@ -8,7 +8,7 @@ test("admin end-to-end journey", async ({ page }) => {
     expectedHomePath: /\/admin\/dashboard/,
   });
 
-  await page.getByLabel("Portal sections").getByRole("link", { name: "Register" }).click();
+  await page.goto("/admin/register-inmate");
   await expect(page).toHaveURL(/\/admin\/register-inmate/);
 
   await page.getByLabel("Full Name").fill("Journey Test Inmate");
@@ -17,6 +17,8 @@ test("admin end-to-end journey", async ({ page }) => {
   await page.getByLabel("Educational Background").fill("Senior High");
   await page.getByLabel("Skill Interests (comma separated)").fill("IT, Carpentry");
   await page.getByLabel("Block or Unit Assignment").fill("Block J");
+  await page.getByTestId("capture-photo-btn").click();
+  await page.getByTestId("capture-fingerprint-btn").click();
   await page.getByRole("button", { name: "Register Inmate" }).click();
 
   await expect(page.getByText("Journey Test Inmate")).toBeVisible();

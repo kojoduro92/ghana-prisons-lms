@@ -22,6 +22,60 @@ import {
 } from "@/lib/seed-data";
 import { STORAGE_KEYS, browserStorage } from "@/lib/storage";
 
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeEnrollment(entry: Enrollment): Enrollment {
+  const progressPercent = clampNumber(entry.progressPercent, 0, 100);
+  const lessonsCompleted =
+    typeof entry.lessonsCompleted === "number"
+      ? Math.max(0, Math.floor(entry.lessonsCompleted))
+      : Math.max(0, Math.round(progressPercent / 8));
+  const timeSpentMinutes =
+    typeof entry.timeSpentMinutes === "number"
+      ? Math.max(0, Math.floor(entry.timeSpentMinutes))
+      : Math.max(0, lessonsCompleted * 35);
+  const latestAssessmentScore =
+    typeof entry.latestAssessmentScore === "number"
+      ? clampNumber(Math.round(entry.latestAssessmentScore), 0, 100)
+      : progressPercent >= 45
+        ? clampNumber(Math.round(58 + progressPercent * 0.45), 0, 100)
+        : undefined;
+  const assessmentsTaken =
+    typeof entry.assessmentsTaken === "number"
+      ? Math.max(0, Math.floor(entry.assessmentsTaken))
+      : latestAssessmentScore !== undefined
+        ? 1
+        : Math.max(0, Math.round(progressPercent / 35));
+
+  return {
+    ...entry,
+    progressPercent,
+    status: progressPercent >= 100 ? "Completed" : entry.status,
+    lessonsCompleted,
+    timeSpentMinutes,
+    assessmentsTaken,
+    latestAssessmentScore,
+  };
+}
+
+function normalizeCourse(course: Course): Course {
+  const rating = clampNumber(course.rating, 0, 5);
+  const normalizedDuration =
+    typeof course.durationHours === "number" && Number.isFinite(course.durationHours)
+      ? Math.max(1, Math.round(course.durationHours))
+      : undefined;
+
+  return {
+    ...course,
+    rating: Number(rating.toFixed(1)),
+    status: course.status ?? "active",
+    durationHours: normalizedDuration,
+    updatedAt: course.updatedAt ?? new Date().toISOString(),
+  };
+}
+
 export function getInmatesState(): InmateProfile[] {
   const stored = browserStorage.loadState<InmateProfile[]>(STORAGE_KEYS.inmates);
 
@@ -50,17 +104,24 @@ export function getCoursesState(): Course[] {
   const stored = browserStorage.loadState<Course[]>(STORAGE_KEYS.courses);
 
   if (stored && stored.length > 0) {
-    return stored;
+    const normalized = stored.map(normalizeCourse);
+    browserStorage.saveState(STORAGE_KEYS.courses, normalized);
+    return normalized;
   }
 
-  browserStorage.saveState(STORAGE_KEYS.courses, seededCourses);
-  return seededCourses;
+  const normalizedSeeds = seededCourses.map(normalizeCourse);
+  browserStorage.saveState(STORAGE_KEYS.courses, normalizedSeeds);
+  return normalizedSeeds;
 }
 
 export function addOrUpdateCourse(nextCourse: Course): Course[] {
   const current = getCoursesState();
-  const withoutDuplicate = current.filter((item) => item.id !== nextCourse.id);
-  const next = [nextCourse, ...withoutDuplicate];
+  const normalized = normalizeCourse({
+    ...nextCourse,
+    updatedAt: new Date().toISOString(),
+  });
+  const withoutDuplicate = current.filter((item) => item.id !== normalized.id);
+  const next = [normalized, ...withoutDuplicate];
 
   browserStorage.saveState(STORAGE_KEYS.courses, next);
   return next;
@@ -70,11 +131,14 @@ export function getEnrollmentsState(): Enrollment[] {
   const stored = browserStorage.loadState<Enrollment[]>(STORAGE_KEYS.enrollments);
 
   if (stored && stored.length > 0) {
-    return stored;
+    const normalized = stored.map(normalizeEnrollment);
+    browserStorage.saveState(STORAGE_KEYS.enrollments, normalized);
+    return normalized;
   }
 
-  browserStorage.saveState(STORAGE_KEYS.enrollments, seededEnrollments);
-  return seededEnrollments;
+  const normalizedSeeds = seededEnrollments.map(normalizeEnrollment);
+  browserStorage.saveState(STORAGE_KEYS.enrollments, normalizedSeeds);
+  return normalizedSeeds;
 }
 
 export function getEnrollmentsForStudent(studentId: string): Enrollment[] {
@@ -90,12 +154,95 @@ export function enrollStudentInCourse(studentId: string, courseId: string): Enro
   }
 
   const next: Enrollment[] = [
-    { studentId, courseId, progressPercent: 0, status: "In Progress" },
+    normalizeEnrollment({
+      studentId,
+      courseId,
+      progressPercent: 0,
+      status: "In Progress",
+      lessonsCompleted: 0,
+      timeSpentMinutes: 0,
+      assessmentsTaken: 0,
+    }),
     ...current,
   ];
 
   browserStorage.saveState(STORAGE_KEYS.enrollments, next);
   return next;
+}
+
+export function updateEnrollmentProgress(input: {
+  studentId: string;
+  courseId: string;
+  activityMinutes?: number;
+  lessonsDelta?: number;
+  progressDelta?: number;
+  assessmentScore?: number;
+}): Enrollment[] {
+  const current = getEnrollmentsState();
+  const now = new Date().toISOString();
+  let updated = false;
+
+  const next = current.map((entry) => {
+    if (entry.studentId !== input.studentId || entry.courseId !== input.courseId) {
+      return entry;
+    }
+
+    updated = true;
+    const normalized = normalizeEnrollment(entry);
+    const activityMinutes = Math.max(0, Math.floor(input.activityMinutes ?? 0));
+    const lessonsDelta = Math.max(0, Math.floor(input.lessonsDelta ?? 0));
+    const progressDelta = input.progressDelta ?? 0;
+    const hasAssessment = typeof input.assessmentScore === "number" && Number.isFinite(input.assessmentScore);
+    const normalizedAssessment = hasAssessment ? clampNumber(Math.round(input.assessmentScore ?? 0), 0, 100) : undefined;
+
+    const progressPercent = clampNumber(normalized.progressPercent + progressDelta, 0, 100);
+    const status: Enrollment["status"] = progressPercent >= 100 ? "Completed" : "In Progress";
+
+    return {
+      ...normalized,
+      progressPercent,
+      status,
+      timeSpentMinutes: (normalized.timeSpentMinutes ?? 0) + activityMinutes,
+      lessonsCompleted: (normalized.lessonsCompleted ?? 0) + lessonsDelta,
+      assessmentsTaken: (normalized.assessmentsTaken ?? 0) + (hasAssessment ? 1 : 0),
+      latestAssessmentScore: hasAssessment ? normalizedAssessment : normalized.latestAssessmentScore,
+      lastActivityAt: now,
+    };
+  });
+
+  if (!updated) {
+    return current;
+  }
+
+  browserStorage.saveState(STORAGE_KEYS.enrollments, next);
+  return next;
+}
+
+export function getLearningSummaryForStudent(studentId: string): {
+  activeCourses: number;
+  totalMinutes: number;
+  lessonsCompleted: number;
+  assessmentsTaken: number;
+  averageAssessmentScore: number | null;
+} {
+  const items = getEnrollmentsForStudent(studentId).map(normalizeEnrollment);
+  const activeCourses = items.length;
+  const totalMinutes = items.reduce((sum, item) => sum + (item.timeSpentMinutes ?? 0), 0);
+  const lessonsCompleted = items.reduce((sum, item) => sum + (item.lessonsCompleted ?? 0), 0);
+  const assessmentsTaken = items.reduce((sum, item) => sum + (item.assessmentsTaken ?? 0), 0);
+  const scored = items
+    .map((item) => item.latestAssessmentScore)
+    .filter((value): value is number => typeof value === "number");
+  const averageAssessmentScore =
+    scored.length > 0 ? Math.round(scored.reduce((sum, score) => sum + score, 0) / scored.length) : null;
+
+  return {
+    activeCourses,
+    totalMinutes,
+    lessonsCompleted,
+    assessmentsTaken,
+    averageAssessmentScore,
+  };
 }
 
 export function getCertificatesState(): CertificateRecord[] {
@@ -208,6 +355,38 @@ export function summarizeAttendance(events: AttendanceEvent[]): {
   const completionRate = entries > 0 ? Math.round((Math.min(entries, exits) / entries) * 100) : 0;
 
   return { entries, exits, completionRate };
+}
+
+export function getLatestOpenEntry(events: AttendanceEvent[]): AttendanceEvent | null {
+  const sorted = [...events].sort((left, right) => {
+    return new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
+  });
+
+  let openEntry: AttendanceEvent | null = null;
+
+  for (const event of sorted) {
+    if (event.type === "entry") {
+      openEntry = event;
+      continue;
+    }
+
+    if (event.type === "exit" && openEntry) {
+      openEntry = null;
+    }
+  }
+
+  return openEntry;
+}
+
+export function getSessionDurationMinutes(startedAt: string, endedAt = new Date().toISOString()): number {
+  const startMs = new Date(startedAt).getTime();
+  const endMs = new Date(endedAt).getTime();
+
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor((endMs - startMs) / (1000 * 60)));
 }
 
 export function getReportsState(): ReportRecord[] {

@@ -9,11 +9,12 @@ import {
   addAuditEvent,
   addReportRecord,
   getAttendanceEventsState,
+  getEnrollmentsState,
   getInmatesState,
   getReportsState,
 } from "@/lib/portal-state";
 import { buildReportRows, downloadCsv, toCsv, type ReportRow } from "@/lib/reporting";
-import { appMeta, enrollments } from "@/lib/seed-data";
+import { appMeta } from "@/lib/seed-data";
 import type { ReportType } from "@/types/domain";
 
 export default function ReportsWorkspacePage() {
@@ -43,7 +44,15 @@ export default function ReportsWorkspacePage() {
   const [reports, setReports] = useState(getReportsState);
 
   const attendanceEvents = useMemo(() => getAttendanceEventsState(), []);
+  const enrollments = useMemo(() => getEnrollmentsState(), []);
   const inmates = useMemo(() => getInmatesState(), []);
+  const generatedByType = useMemo(() => {
+    const bucket = new Map<ReportType, number>();
+    for (const record of reports) {
+      bucket.set(record.type, (bucket.get(record.type) ?? 0) + 1);
+    }
+    return bucket;
+  }, [reports]);
 
   const historyRows = reports.map((report) => ({
     id: report.id,
@@ -145,6 +154,24 @@ export default function ReportsWorkspacePage() {
 
       <section className="panel">
         <h2 className="section-title">Report Preview</h2>
+        <div className="grid-4" style={{ marginBottom: 12 }}>
+          <article className="panel" style={{ padding: 12 }}>
+            <p className="quick-info">Attendance Reports</p>
+            <h3>{generatedByType.get("attendance") ?? 0}</h3>
+          </article>
+          <article className="panel" style={{ padding: 12 }}>
+            <p className="quick-info">Performance Reports</p>
+            <h3>{generatedByType.get("performance") ?? 0}</h3>
+          </article>
+          <article className="panel" style={{ padding: 12 }}>
+            <p className="quick-info">Course Effectiveness</p>
+            <h3>{generatedByType.get("course-effectiveness") ?? 0}</h3>
+          </article>
+          <article className="panel" style={{ padding: 12 }}>
+            <p className="quick-info">Operational Summary</p>
+            <h3>{generatedByType.get("operational-summary") ?? 0}</h3>
+          </article>
+        </div>
         {reportRows.length > 0 ? (
           <DataTable
             rows={reportRows}

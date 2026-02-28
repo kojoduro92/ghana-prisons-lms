@@ -57,6 +57,12 @@ function roleFromPath(pathname: string): Role | null {
   return null;
 }
 
+function roleLabel(role: Role): string {
+  if (role === "admin") return "Admin";
+  if (role === "inmate") return "Inmate";
+  return "Management";
+}
+
 export function RoleShell({ title, subtitle, userName, currentRole, children }: RoleShellProps) {
   const pathname = usePathname();
   const { session, signOut, switchRole } = useAppShell();
@@ -77,6 +83,7 @@ export function RoleShell({ title, subtitle, userName, currentRole, children }: 
     },
     [pathname],
   );
+  const activeSection = navLinks.find((link) => isNavActive(link.href))?.label ?? "Overview";
 
   return (
     <div className="portal-root">
@@ -100,6 +107,12 @@ export function RoleShell({ title, subtitle, userName, currentRole, children }: 
             </Link>
           ))}
         </nav>
+      ) : null}
+      {activeRole ? (
+        <section className="role-context">
+          <p className="role-context-eyebrow">{roleLabel(activeRole)} Workspace</p>
+          <p className="role-context-title">{activeSection}</p>
+        </section>
       ) : null}
       <main className="portal-content">{children}</main>
       {flowActions.length > 0 ? (

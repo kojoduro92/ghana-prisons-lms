@@ -16,6 +16,8 @@ import {
   getEnrollmentsState,
   getInmatesState,
 } from "@/lib/portal-state";
+import { STORAGE_KEYS, browserStorage } from "@/lib/storage";
+import type { VerificationAttempt } from "@/types/domain";
 
 export default function AdminDashboardPage() {
   const { setSelectedInmateId } = useAppShell();
@@ -26,17 +28,31 @@ export default function AdminDashboardPage() {
   const [enrollments] = useState(getEnrollmentsState);
   const [certificates] = useState(getCertificatesState);
   const [attendanceEvents] = useState(getAttendanceEventsState);
+  const [verificationLogs] = useState(
+    () => browserStorage.loadState<VerificationAttempt[]>(STORAGE_KEYS.verificationLogs) ?? [],
+  );
 
   const liveStats = useMemo(() => {
     const activeLearners = inmateRows.filter((item) => item.biometricStatus === "Enrolled").length;
+    const completionRate =
+      enrollments.length > 0
+        ? Math.round((enrollments.filter((item) => item.progressPercent >= 80).length / enrollments.length) * 100)
+        : 0;
+    const entries = attendanceEvents.filter((event) => event.type === "entry").length;
+    const exits = attendanceEvents.filter((event) => event.type === "exit").length;
+    const attendanceRate = entries > 0 ? Math.round((Math.min(entries, exits) / entries) * 100) : 0;
+    const openSessions = Math.max(0, entries - exits);
 
     return {
       totalInmatesRegistered: inmateRows.length,
       activeLearners,
       coursesEnrolled: enrollments.length,
       certificatesIssued: certificates.length,
+      completionRate,
+      attendanceRate,
+      openSessions,
     };
-  }, [certificates.length, enrollments.length, inmateRows]);
+  }, [attendanceEvents, certificates.length, enrollments, inmateRows]);
 
   const enrollmentByCategory = useMemo(() => {
     const bucket = new Map<string, number>();
@@ -67,13 +83,76 @@ export default function AdminDashboardPage() {
     });
   }, [inmateRows, search, statusFilter]);
 
+  const verificationMethodDistribution = useMemo(() => {
+    const bucket = new Map<"fingerprint" | "face", number>([
+      ["fingerprint", 0],
+      ["face", 0],
+    ]);
+
+    for (const event of attendanceEvents) {
+      bucket.set(event.verifiedBy, (bucket.get(event.verifiedBy) ?? 0) + 1);
+    }
+
+    return [
+      { label: "Fingerprint", value: bucket.get("fingerprint") ?? 0 },
+      { label: "Face", value: bucket.get("face") ?? 0 },
+    ];
+  }, [attendanceEvents]);
+
+  const facilityUsage = useMemo(() => {
+    const bucket = new Map<string, number>();
+
+    for (const event of attendanceEvents) {
+      bucket.set(event.facility, (bucket.get(event.facility) ?? 0) + 1);
+    }
+
+    return Array.from(bucket.entries())
+      .map(([facility, count]) => ({ facility, count }))
+      .sort((left, right) => right.count - left.count);
+  }, [attendanceEvents]);
+
+  const deviceUsage = useMemo(() => {
+    const bucket = new Map<string, number>();
+    for (const log of verificationLogs) {
+      bucket.set(log.deviceId, (bucket.get(log.deviceId) ?? 0) + 1);
+    }
+
+    return Array.from(bucket.entries())
+      .map(([deviceId, count]) => ({ deviceId, count }))
+      .sort((left, right) => right.count - left.count)
+      .slice(0, 5);
+  }, [verificationLogs]);
+
   return (
     <RoleShell title={appMeta.name} subtitle="Administrator Dashboard" userName="Admin Officer">
+      <section className="panel dashboard-intro">
+        <div>
+          <h1>Admin Command Center</h1>
+          <p className="quick-info" style={{ margin: "6px 0 0" }}>
+            Monitor registration, attendance, learning outcomes, and security events from one workspace.
+          </p>
+        </div>
+        <div className="inline-row" style={{ justifyContent: "flex-start" }}>
+          <Link href="/admin/register-inmate" className="button-primary">
+            New Registration
+          </Link>
+          <Link href="/admin/reports" className="button-soft">
+            Reports Workspace
+          </Link>
+        </div>
+      </section>
+
       <section className="grid-4">
         <StatCard label="Total Inmates Registered" value={liveStats.totalInmatesRegistered.toLocaleString()} />
         <StatCard label="Active Learners" value={liveStats.activeLearners.toLocaleString()} />
         <StatCard label="Courses Enrolled" value={liveStats.coursesEnrolled.toLocaleString()} />
         <StatCard label="Certificates Issued" value={liveStats.certificatesIssued.toLocaleString()} />
+      </section>
+
+      <section className="grid-3">
+        <StatCard label="Attendance Closure Rate" value={`${liveStats.attendanceRate}%`} helper="Entry/exit completion" />
+        <StatCard label="Learning Completion Rate" value={`${liveStats.completionRate}%`} helper="Enrollments >= 80%" />
+        <StatCard label="Open Facility Sessions" value={liveStats.openSessions} helper="Entries pending exit" />
       </section>
 
       <section className="grid-2">
@@ -105,6 +184,49 @@ export default function AdminDashboardPage() {
                 </span>
               </div>
             ))}
+          </div>
+        </ChartCard>
+      </section>
+
+      <section className="grid-2">
+        <ChartCard title="Biometric Verification Mix">
+          <div style={{ display: "grid", gap: 10 }}>
+            {verificationMethodDistribution.map((item) => (
+              <div key={item.label}>
+                <div className="progress-row-head">
+                  <span>{item.label}</span>
+                  <span>{item.value}</span>
+                </div>
+                <div className="progress-track">
+                  <span
+                    className="progress-fill"
+                    style={{
+                      width: `${Math.min(100, item.value * 10)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </ChartCard>
+
+        <ChartCard title="Facility / Device Usage">
+          <div style={{ display: "grid", gap: 8 }}>
+            {facilityUsage.slice(0, 3).map((item) => (
+              <div key={item.facility} className="inline-row panel" style={{ padding: 10 }}>
+                <span>{item.facility}</span>
+                <strong>{item.count} events</strong>
+              </div>
+            ))}
+            {deviceUsage.map((item) => (
+              <div key={item.deviceId} className="inline-row panel" style={{ padding: 10 }}>
+                <span>{item.deviceId}</span>
+                <span className="quick-info">{item.count} biometric attempts</span>
+              </div>
+            ))}
+            {facilityUsage.length === 0 && deviceUsage.length === 0 ? (
+              <p className="quick-info">No usage telemetry captured yet.</p>
+            ) : null}
           </div>
         </ChartCard>
       </section>

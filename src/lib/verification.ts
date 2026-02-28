@@ -1,14 +1,22 @@
 import type { VerificationAttempt } from "@/types/domain";
 
+interface VerificationOptions {
+  forceResult?: VerificationAttempt["result"];
+  deviceId?: string;
+}
+
 export function simulateVerificationAttempt(
   method: VerificationAttempt["method"],
   randomValue = Math.random(),
+  options?: VerificationOptions,
 ): VerificationAttempt {
+  const result = options?.forceResult ?? (randomValue >= 0.2 ? "success" : "failed");
+
   return {
     method,
-    result: randomValue >= 0.2 ? "success" : "failed",
+    result,
     timestamp: new Date().toISOString(),
-    deviceId: "lab-terminal-01",
+    deviceId: options?.deviceId ?? "lab-terminal-01",
   };
 }
 

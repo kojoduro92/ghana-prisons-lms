@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { RoleShell } from "@/components/role-shell";
+import { StatCard } from "@/components/stat-card";
 import { appMeta } from "@/lib/seed-data";
 import { formatDateTime } from "@/lib/format";
 import { getAttendanceEventsState } from "@/lib/portal-state";
@@ -10,6 +11,7 @@ import { getAttendanceEventsState } from "@/lib/portal-state";
 export default function AttendanceLogsPage() {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "entry" | "exit">("all");
+  const [methodFilter, setMethodFilter] = useState<"all" | "fingerprint" | "face">("all");
   const [events] = useState(getAttendanceEventsState);
 
   const filtered = useMemo(() => {
@@ -20,12 +22,41 @@ export default function AttendanceLogsPage() {
         event.verifiedBy.toLowerCase().includes(query.toLowerCase());
 
       const matchesType = typeFilter === "all" ? true : event.type === typeFilter;
-      return matchesQuery && matchesType;
+      const matchesMethod = methodFilter === "all" ? true : event.verifiedBy === methodFilter;
+      return matchesQuery && matchesType && matchesMethod;
     });
-  }, [events, query, typeFilter]);
+  }, [events, methodFilter, query, typeFilter]);
+
+  const summary = useMemo(() => {
+    const entries = events.filter((event) => event.type === "entry").length;
+    const exits = events.filter((event) => event.type === "exit").length;
+    const closureRate = entries > 0 ? Math.round((Math.min(entries, exits) / entries) * 100) : 0;
+    const faceEvents = events.filter((event) => event.verifiedBy === "face").length;
+    const fingerprintEvents = events.filter((event) => event.verifiedBy === "fingerprint").length;
+
+    return {
+      entries,
+      exits,
+      closureRate,
+      faceEvents,
+      fingerprintEvents,
+      openSessions: Math.max(0, entries - exits),
+    };
+  }, [events]);
 
   return (
     <RoleShell title={appMeta.name} subtitle="Attendance Audit Logs" userName="Admin Officer">
+      <section className="grid-3">
+        <StatCard label="Total Entries" value={summary.entries} helper="Facility clock-ins" />
+        <StatCard label="Total Exits" value={summary.exits} helper="Facility clock-outs" />
+        <StatCard label="Closure Rate" value={`${summary.closureRate}%`} helper={`${summary.openSessions} open sessions`} />
+      </section>
+
+      <section className="grid-2">
+        <StatCard label="Fingerprint Events" value={summary.fingerprintEvents} helper="Sensor verifications" />
+        <StatCard label="Face Events" value={summary.faceEvents} helper="Camera verifications" />
+      </section>
+
       <section className="panel">
         <div className="inline-row" style={{ marginBottom: 12 }}>
           <h2 className="section-title" style={{ marginBottom: 0 }}>
@@ -47,6 +78,15 @@ export default function AttendanceLogsPage() {
               <option value="all">All types</option>
               <option value="entry">Entry</option>
               <option value="exit">Exit</option>
+            </select>
+            <select
+              className="select"
+              value={methodFilter}
+              onChange={(event) => setMethodFilter(event.target.value as "all" | "fingerprint" | "face")}
+            >
+              <option value="all">All methods</option>
+              <option value="fingerprint">Fingerprint</option>
+              <option value="face">Face</option>
             </select>
           </div>
         </div>

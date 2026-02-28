@@ -18,22 +18,34 @@ export async function loginThroughVerification(
   const continueButton = page.getByRole("button", { name: "Continue to Portal" });
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    await verifyButton.click();
-    if (await continueButton.isEnabled()) {
+    if (await verifyButton.count() === 0) {
       break;
     }
+    await verifyButton.click();
+    if ((await continueButton.count()) > 0 && (await continueButton.isEnabled())) {
+      break;
+    }
+  }
+
+  if ((await continueButton.count()) === 0) {
+    await expect(page).toHaveURL(options.expectedHomePath);
+    return;
   }
 
   await expect(continueButton).toBeEnabled();
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
+    if ((await continueButton.count()) === 0) {
+      await expect(page).toHaveURL(options.expectedHomePath);
+      return;
+    }
     await continueButton.click();
 
     try {
       await expect(page).toHaveURL(options.expectedHomePath, { timeout: 4_000 });
       return;
     } catch {
-      if (attempt < 2) {
+      if (attempt < 2 && (await verifyButton.count()) > 0) {
         await verifyButton.click();
         await expect(continueButton).toBeEnabled();
       }

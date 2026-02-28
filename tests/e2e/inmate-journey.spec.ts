@@ -9,8 +9,9 @@ test("inmate end-to-end journey", async ({ page }) => {
   });
 
   await expect(page.getByRole("heading", { name: "Attendance Operations" })).toBeVisible();
+  await expect(page.getByText("In Session")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Clock In" })).toBeDisabled();
 
-  await page.getByRole("button", { name: "Clock In" }).click();
   await page.getByRole("button", { name: "Clock Out" }).click();
   await expect(page.getByText("EXIT via").first()).toBeVisible();
   await expect(page.getByText("ENTRY via").first()).toBeVisible();
@@ -20,6 +21,11 @@ test("inmate end-to-end journey", async ({ page }) => {
   await expect(page).toHaveURL(/\/inmate\/courses/);
   await expect(page.getByRole("heading", { name: "Browse and Enroll in Courses" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Enrolled" }).first()).toBeVisible();
+  await page.getByTestId("open-course-page-C-001").click();
+  await expect(page).toHaveURL(/\/inmate\/courses\/C-\d+/);
+  await expect(page.getByRole("heading", { name: "Progress Summary" })).toBeVisible();
+  await page.getByRole("link", { name: "Back to Courses" }).click();
+  await expect(page).toHaveURL(/\/inmate\/courses/);
 
   await expect(page.getByLabel("Portal sections").getByRole("link", { name: "Certificates" })).toBeVisible();
   await page.goto("/inmate/certificates");
