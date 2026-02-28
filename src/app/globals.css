@@ -22,9 +22,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background:
-    radial-gradient(circle at top left, rgba(255, 248, 239, 0.92), rgba(244, 237, 229, 0.95) 55%, #efe8df),
-    linear-gradient(180deg, rgba(139, 84, 46, 0.05), transparent 40%);
+  background: #ffffff;
   color: var(--ink-900);
   font-family: var(--font-body), "Avenir Next", "Segoe UI", sans-serif;
 }
@@ -45,39 +43,34 @@ a {
 .portal-root {
   min-height: 100vh;
   padding: 22px;
-  background:
-    radial-gradient(circle at 0% 0%, rgba(184, 134, 87, 0.16), transparent 28%),
-    radial-gradient(circle at 100% 18%, rgba(159, 105, 60, 0.08), transparent 36%);
+  background: #ffffff;
 }
 
 .portal-root-public {
-  background:
-    radial-gradient(circle at 0% 0%, rgba(184, 134, 87, 0.2), transparent 30%),
-    radial-gradient(circle at 100% 30%, rgba(139, 84, 46, 0.1), transparent 42%),
-    linear-gradient(180deg, rgba(255, 249, 242, 0.72), rgba(253, 246, 237, 0.9));
+  background: #ffffff;
 }
 
 .portal-content {
-  max-width: 1280px;
+  width: 100%;
+  max-width: 1600px;
   margin: 0 auto;
   display: grid;
   gap: 18px;
 }
 
 .panel {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(255, 250, 243, 0.96)),
-    radial-gradient(circle at 92% 12%, rgba(179, 123, 77, 0.08), transparent 35%);
-  border: 1px solid #dcc8b6;
+  background: #ffffff;
+  border: 1px solid #eaeaea;
   border-radius: 18px;
   padding: 20px;
   box-shadow:
-    0 14px 30px rgba(52, 31, 19, 0.1),
+    0 8px 30px rgba(0, 0, 0, 0.04),
     inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .top-nav {
-  max-width: 1280px;
+  width: 100%;
+  max-width: 1600px;
   margin: 0 auto 18px;
   position: sticky;
   top: 12px;
@@ -187,7 +180,8 @@ a {
 }
 
 .role-nav {
-  max-width: 1280px;
+  width: 100%;
+  max-width: 1600px;
   margin: 0 auto 18px;
   border: 1px solid #d8c4b2;
   border-radius: 14px;
@@ -228,7 +222,8 @@ a {
 }
 
 .role-context {
-  max-width: 1280px;
+  width: 100%;
+  max-width: 1600px;
   margin: 0 auto 18px;
   border: 1px solid #dfcdba;
   border-radius: 12px;
@@ -252,7 +247,8 @@ a {
 }
 
 .flow-panel {
-  max-width: 1280px;
+  width: 100%;
+  max-width: 1600px;
   margin: 0 auto;
   border-radius: 16px;
   border: 1px solid #d6c0ad;
@@ -834,28 +830,37 @@ a {
 }
 
 .landing-content {
-  max-width: 1280px;
+  width: 100%;
+  max-width: 1600px;
   gap: 20px;
 }
 
 .landing-topbar {
-  max-width: 1280px;
+  width: 100%;
+  max-width: 1600px;
   margin: 0 auto 18px;
   border-radius: 18px;
-  border: 1px solid rgba(116, 74, 45, 0.82);
-  background:
-    linear-gradient(112deg, rgba(33, 19, 12, 0.96), rgba(132, 84, 48, 0.88) 56%, rgba(37, 22, 14, 0.96)),
-    radial-gradient(circle at 84% 14%, rgba(255, 213, 169, 0.2), transparent 28%);
-  box-shadow: 0 16px 28px rgba(44, 26, 16, 0.32);
-  color: #fff6eb;
+  border: 1px solid #eaeaea;
+  background: #ffffff;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+  color: var(--ink-900);
   padding: 12px 16px;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  display: flex;
+  justify-content: space-between;
   gap: 16px;
   align-items: center;
   position: sticky;
   top: 12px;
   z-index: 48;
+}
+
+.landing-topbar .top-nav-subtitle {
+  color: #555555 !important;
+  opacity: 1 !important;
+}
+
+.floating-chat-btn:hover {
+  transform: scale(1.1) rotate(5deg) !important;
 }
 
 .landing-topbar-brand {
@@ -954,13 +959,13 @@ a {
 }
 
 .landing-premium-hero {
-  display: grid;
-  grid-template-columns: 0.92fr 1.08fr;
-  gap: 18px;
-  border-color: #c9af95;
-  background:
-    linear-gradient(120deg, rgba(255, 249, 240, 0.98), rgba(255, 242, 226, 0.93)),
-    radial-gradient(circle at 12% 10%, rgba(185, 131, 88, 0.16), transparent 36%);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
 }
 
 /* Compatibility styles for older landing markup so hero images never overflow full-page. */
@@ -1061,8 +1066,8 @@ a {
 
 .landing-metric-card {
   border-radius: 12px;
-  border: 1px solid #dcc5af;
-  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid #eaeaea;
+  background: #fafafa;
   padding: 12px;
   display: grid;
   gap: 4px;
@@ -1251,8 +1256,8 @@ a {
 
 .landing-path-card {
   border-radius: 14px;
-  border: 1px solid #d8c1aa;
-  background: linear-gradient(180deg, #fff, #fdf4e8);
+  border: 1px solid #eaeaea;
+  background: #ffffff;
   padding: 14px;
   display: grid;
   gap: 8px;
@@ -1264,8 +1269,8 @@ a {
 
 .landing-path-card:hover {
   transform: translateY(-2px);
-  border-color: #ae7d57;
-  box-shadow: 0 14px 24px rgba(70, 39, 21, 0.12);
+  border-color: #cccccc;
+  box-shadow: 0 14px 24px rgba(0, 0, 0, 0.06);
 }
 
 .landing-path-card h3 {
@@ -1297,10 +1302,10 @@ a {
 
 .landing-journey-card {
   border-radius: 14px;
-  border: 1px solid #dac7b7;
-  background: linear-gradient(180deg, #fffdfb, #f8efe4);
+  border: 1px solid #eaeaea;
+  background: #ffffff;
   overflow: hidden;
-  box-shadow: 0 8px 16px rgba(52, 31, 19, 0.08);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.04);
 }
 
 .landing-journey-image-wrap {
@@ -1328,10 +1333,8 @@ a {
 
 .landing-workflow-step {
   border-radius: 12px;
-  border: 1px solid #d9c4af;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(253, 244, 234, 0.96)),
-    radial-gradient(circle at 10% 0%, rgba(173, 120, 78, 0.08), transparent 45%);
+  border: 1px solid #eaeaea;
+  background: #ffffff;
   padding: 12px;
   display: grid;
   gap: 6px;
@@ -1372,7 +1375,7 @@ a {
   justify-content: center;
   border-radius: 999px;
   border: 1px solid rgba(215, 177, 134, 0.6);
-  background: #0f0b08;
+  background: #ffffff;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -1385,10 +1388,10 @@ a {
 
 .category-card {
   border-radius: 14px;
-  border: 1px solid #d8c6b5;
-  background: linear-gradient(180deg, #fffdf9, #f6eee4);
+  border: 1px solid #eaeaea;
+  background: #ffffff;
   padding: 14px;
-  box-shadow: 0 6px 14px rgba(52, 31, 19, 0.08);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.04);
   min-height: 152px;
   display: grid;
   align-content: start;
@@ -1400,7 +1403,7 @@ a {
 
 .category-card:hover {
   transform: translateY(-2px);
-  border-color: #ae7d57;
+  border-color: #cccccc;
 }
 
 .category-icon {
@@ -1519,7 +1522,7 @@ a {
 
 .verification-page-card {
   width: 100%;
-  max-width: 1280px;
+  max-width: 1600px;
   margin: 0 auto;
   border-color: #ccb097;
   background:
@@ -1904,7 +1907,7 @@ a {
   }
 
   .verification-page-card {
-    max-width: 1280px;
+    max-width: 1600px;
   }
 }
 

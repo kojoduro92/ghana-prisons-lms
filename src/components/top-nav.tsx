@@ -28,8 +28,6 @@ export function TopNav({ title, subtitle, userName, activeRole, onSignOut, onSwi
         <Link href="/landing" className="chip-button chip-link">
           Portal Home
         </Link>
-        <span className="status-chip">Offline Mode</span>
-        <span className="status-chip">Local Secure Server</span>
         <div className="top-nav-role-switch">
           <button
             type="button"
