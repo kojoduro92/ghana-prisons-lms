@@ -1,0 +1,532 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  management
+  lecturer
+  inmate
+  clocking_officer
+}
+
+enum UserStatus {
+  active
+  suspended
+}
+
+enum BiometricMethod {
+  fingerprint
+  face
+}
+
+enum VerificationResult {
+  success
+  failed
+}
+
+enum ProofType {
+  camera_face
+  device_biometric
+  simulated
+}
+
+enum AttendanceType {
+  entry
+  exit
+}
+
+enum CourseStatus {
+  active
+  draft
+  archived
+}
+
+enum EnrollmentStatus {
+  in_progress
+  completed
+}
+
+enum LessonType {
+  video
+  reading
+  exercise
+  assessment
+}
+
+enum StaffType {
+  admin
+  management
+  lecturer
+  clocking_officer
+}
+
+enum ReportType {
+  attendance
+  performance
+  course_effectiveness
+  operational_summary
+  executive_pack
+}
+
+enum ReportFormat {
+  pdf
+  xlsx
+  csv
+}
+
+model Role {
+  id          String  @id @default(cuid())
+  name        UserRole @unique
+  description String?
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("roles")
+}
+
+model User {
+  id           String      @id @default(cuid())
+  roleId       String
+  username     String      @unique
+  passwordHash String
+  status       UserStatus  @default(active)
+  lastLoginAt  DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  role            Role                  @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  inmateProfile   InmateProfile?
+  staffProfile    StaffProfile?
+  sessions        Session[]
+  auditEvents     AuditEvent[]          @relation("AuditActor")
+  reports         ReportJob[]           @relation("ReportGeneratedBy")
+  biometricChecks BiometricVerification[]
+
+  @@index([roleId])
+  @@map("users")
+}
+
+model Session {
+  id            String   @id @default(cuid())
+  userId        String
+  tokenHash     String   @unique
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  facilityGrant Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model InmateProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  studentId           String   @unique
+  warrantName         String?
+  warrantSerialNumber String?  @unique
+  prisonNumber        String   @unique
+  fullName            String
+  dateOfBirth         DateTime?
+  gender              String
+  station             String?
+  blockName           String?
+  cellNumber          String?
+  offense             String?
+  sentence            String?
+  assignedPrison      String
+  blockAssignment     String
+  educationBackground String?
+  skillInterests      Json?
+  biometricStatus     String   @default("Pending")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollments     CourseEnrollment[]
+  attendanceLogs  AttendanceLog[]
+  clockinSessions ClockinSession[]
+  certificates    Certificate[]
+  submissions     Submission[]
+  biometricEnrollment   BiometricEnrollment?
+  biometricVerifications BiometricVerification[]
+
+  @@index([assignedPrison])
+  @@map("inmate_profiles")
+}
+
+model StaffProfile {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  staffCode String    @unique
+  fullName  String
+  staffType StaffType
+  phone     String?
+  email     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lecturedCourses Course[]         @relation("CourseLecturer")
+  gradedSubmits   Submission[]     @relation("SubmissionGradedBy")
+  clockinSessions ClockinSession[] @relation("ClockingOfficer")
+
+  @@index([staffType])
+  @@map("staff_profiles")
+}
+
+model CourseCategory {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  courses     Course[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("course_categories")
+}
+
+model Course {
+  id              String       @id @default(cuid())
+  categoryId      String
+  lecturerStaffId String?
+  courseCode      String       @unique
+  title           String
+  description     String?
+  durationWeeks   Int?
+  level           String?
+  status          CourseStatus @default(active)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  category    CourseCategory    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  lecturer    StaffProfile?     @relation("CourseLecturer", fields: [lecturerStaffId], references: [id], onDelete: SetNull)
+  modules     CourseModule[]
+  materials   CourseMaterial[]
+  enrollments CourseEnrollment[]
+  assignments Assignment[]
+  attendance  AttendanceLog[]
+  certificates Certificate[]
+
+  @@index([categoryId])
+  @@index([lecturerStaffId])
+  @@map("courses")
+}
+
+model CourseMaterial {
+  id            String   @id @default(cuid())
+  courseId      String
+  title         String
+  kind          String
+  mimeType      String
+  fileName      String
+  fileSizeBytes Int
+  storagePath   String
+  uploadedByName String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId, createdAt])
+  @@map("course_materials")
+}
+
+model CourseModule {
+  id          String   @id @default(cuid())
+  courseId    String
+  title       String
+  objective   String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course  Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons CourseLesson[]
+
+  @@index([courseId, sortOrder])
+  @@map("course_modules")
+}
+
+model CourseLesson {
+  id              String     @id @default(cuid())
+  moduleId         String
+  title            String
+  lessonType       LessonType
+  durationMinutes  Int
+  resourcePath     String?
+  notes            String?
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  module CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@index([moduleId, sortOrder])
+  @@map("course_lessons")
+}
+
+model CourseEnrollment {
+  id                String           @id @default(cuid())
+  inmateId          String
+  courseId          String
+  enrolledAt        DateTime         @default(now())
+  completionPct     Int              @default(0)
+  completionStatus  EnrollmentStatus @default(in_progress)
+  timeSpentMinutes  Int              @default(0)
+  lessonsCompleted  Int              @default(0)
+  assessmentsTaken  Int              @default(0)
+  latestScore       Int?
+  lastActivityAt    DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  inmate InmateProfile @relation(fields: [inmateId], references: [id], onDelete: Cascade)
+  course Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([inmateId, courseId])
+  @@index([courseId])
+  @@map("course_enrollments")
+}
+
+model Assignment {
+  id            String   @id @default(cuid())
+  courseId       String
+  title          String
+  description    String?
+  dueAt          DateTime?
+  gradingMode    String?
+  answerKey      String?
+  createdById    String?
+  attachmentFileName  String?
+  attachmentMimeType  String?
+  attachmentSizeBytes Int?
+  attachmentPath      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+
+  @@index([courseId])
+  @@map("assignments")
+}
+
+model Submission {
+  id             String   @id @default(cuid())
+  assignmentId   String
+  inmateId       String
+  submittedAt    DateTime @default(now())
+  score          Int?
+  feedback       String?
+  gradedByStaffId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  assignment Assignment    @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  inmate     InmateProfile @relation(fields: [inmateId], references: [id], onDelete: Cascade)
+  gradedBy   StaffProfile? @relation("SubmissionGradedBy", fields: [gradedByStaffId], references: [id], onDelete: SetNull)
+
+  @@index([assignmentId])
+  @@index([inmateId])
+  @@map("submissions")
+}
+
+model HallRoom {
+  id        String   @id @default(cuid())
+  name      String
+  location  String
+  roomType  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clockinSessions ClockinSession[]
+
+  @@unique([name, location])
+  @@map("halls_rooms")
+}
+
+model Device {
+  id        String   @id @default(cuid())
+  serialId  String   @unique
+  deviceType String
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clockinSessions ClockinSession[]
+
+  @@map("devices")
+}
+
+model ClockinSession {
+  id               String   @id @default(cuid())
+  inmateId         String
+  officerStaffId   String?
+  roomId           String
+  deviceId         String
+  clockInAt        DateTime @default(now())
+  clockOutAt       DateTime?
+  biometricMethod  BiometricMethod
+  biometricProof   ProofType
+  sessionStatus    String   @default("active")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  inmate  InmateProfile @relation(fields: [inmateId], references: [id], onDelete: Cascade)
+  officer StaffProfile? @relation("ClockingOfficer", fields: [officerStaffId], references: [id], onDelete: SetNull)
+  room    HallRoom      @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  device  Device        @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+
+  @@index([inmateId, clockInAt])
+  @@index([sessionStatus])
+  @@map("clockin_sessions")
+}
+
+model AttendanceLog {
+  id          String         @id @default(cuid())
+  inmateId    String
+  courseId    String?
+  attendanceType AttendanceType
+  occurredAt  DateTime       @default(now())
+  status      String
+  facility    String?
+  method      BiometricMethod?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  inmate InmateProfile @relation(fields: [inmateId], references: [id], onDelete: Cascade)
+  course Course?       @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  @@index([inmateId, occurredAt])
+  @@index([courseId])
+  @@map("attendance_logs")
+}
+
+model Certificate {
+  id          String   @id @default(cuid())
+  inmateId    String
+  courseId    String
+  issuedById  String?
+  issuedAt    DateTime @default(now())
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  inmate InmateProfile @relation(fields: [inmateId], references: [id], onDelete: Cascade)
+  course Course        @relation(fields: [courseId], references: [id], onDelete: Restrict)
+
+  @@index([inmateId])
+  @@index([courseId])
+  @@map("certificates")
+}
+
+model BiometricEnrollment {
+  id                       String   @id @default(cuid())
+  inmateId                 String   @unique
+  faceCapturedAt           DateTime
+  fingerprintCapturedAt    DateTime
+  strictMode               Boolean
+  deviceBiometricSupported Boolean
+  mode                     String
+  credentialIdHash         String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  inmate InmateProfile @relation(fields: [inmateId], references: [id], onDelete: Cascade)
+
+  @@map("biometric_enrollments")
+}
+
+model BiometricVerification {
+  id          String             @id @default(cuid())
+  userId      String?
+  inmateId    String?
+  method      BiometricMethod
+  result      VerificationResult
+  verifiedAt  DateTime           @default(now())
+  deviceId    String
+  proof       ProofType
+  strictMode  Boolean
+  createdAt   DateTime           @default(now())
+
+  user   User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  inmate InmateProfile? @relation(fields: [inmateId], references: [id], onDelete: SetNull)
+
+  @@index([verifiedAt])
+  @@index([result])
+  @@map("biometric_verifications")
+}
+
+model AuditEvent {
+  id        String   @id @default(cuid())
+  action    String
+  actorId   String?
+  actorName String
+  result    String
+  target    String?
+  details   String?
+  traceId   String?
+  createdAt DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([action, createdAt])
+  @@map("audit_events")
+}
+
+model ReportJob {
+  id            String      @id @default(cuid())
+  reportType    ReportType
+  generatedById String?
+  status        String      @default("completed")
+  scope         Json?
+  generatedAt   DateTime    @default(now())
+  metadata      Json?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  generatedBy User?          @relation("ReportGeneratedBy", fields: [generatedById], references: [id], onDelete: SetNull)
+  exports     ReportExport[]
+
+  @@index([reportType, generatedAt])
+  @@map("report_jobs")
+}
+
+model ReportExport {
+  id         String       @id @default(cuid())
+  reportJobId String
+  format     ReportFormat
+  fileName   String
+  filePath   String
+  createdAt  DateTime     @default(now())
+
+  reportJob ReportJob @relation(fields: [reportJobId], references: [id], onDelete: Cascade)
+
+  @@index([reportJobId])
+  @@map("report_exports")
+}
+
+model StateSnapshot {
+  id          String   @id @default(cuid())
+  actorName   String
+  checksum    String
+  note        String?
+  keyId       String?
+  encryptedState Json
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("state_snapshots")
+}

@@ -47,14 +47,21 @@ describe("portal state", () => {
     const next = addOrUpdateInmate({
       id: "GP-99999",
       fullName: "New Learner",
-      prisonNumber: "GTE-99999",
+      warrantName: "Remand Warrant",
+      warrantSerialNumber: "WR-2026-99999",
+      prisonNumber: "WR-2026-99999",
       dateOfBirth: "1999-01-01",
       gender: "Male",
+      station: "Nsawam Medium Security Prison",
+      blockName: "Block Z",
+      cellNumber: "Z-01",
+      offense: "Test offense",
+      sentence: "12 months imprisonment",
       educationBackground: "Senior High",
       skillInterests: ["IT"],
       blockAssignment: "Block Z",
       biometricStatus: "Enrolled",
-      assignedPrison: "Nsawam",
+      assignedPrison: "Nsawam Medium Security Prison",
     });
 
     expect(next[0].id).toBe("GP-99999");

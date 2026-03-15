@@ -1,4 +1,12 @@
-export type Role = "admin" | "inmate" | "management";
+export type Role = "admin" | "inmate" | "management" | "lecturer" | "clocking_officer";
+
+export interface FacilityAccess {
+  grantedAt: string;
+  method: "fingerprint" | "face";
+  location: string;
+  deviceId: string;
+  expiresAt: string;
+}
 
 export interface UserSession {
   userId: string;
@@ -13,14 +21,22 @@ export interface UserSession {
   facilitySessionId?: string;
   facilityLocation?: string;
   allocatedDeviceType?: "Desktop PC" | "Laptop" | "Tablet";
+  facilityAccess?: FacilityAccess;
 }
 
 export interface InmateProfile {
   id: string;
   fullName: string;
+  warrantName: string;
+  warrantSerialNumber: string;
   prisonNumber: string;
   dateOfBirth: string;
   gender: "Male" | "Female" | "Other";
+  station: string;
+  blockName: string;
+  cellNumber: string;
+  offense: string;
+  sentence: string;
   educationBackground: string;
   skillInterests: string[];
   blockAssignment: string;
@@ -49,6 +65,22 @@ export interface Course {
   durationHours?: number;
   status?: "active" | "draft" | "archived";
   updatedAt?: string;
+}
+
+export type CourseMaterialKind = "video" | "document" | "spreadsheet" | "presentation";
+
+export interface CourseMaterialRecord {
+  id: string;
+  courseId: string;
+  title: string;
+  kind: CourseMaterialKind;
+  mimeType: string;
+  fileName: string;
+  fileSizeBytes: number;
+  storagePath: string;
+  downloadUrl?: string;
+  uploadedBy: string;
+  createdAt: string;
 }
 
 export type CourseLessonType = "video" | "reading" | "exercise" | "assessment";
@@ -126,7 +158,7 @@ export interface ManagementAnalyticsSnapshot {
   aiForecasts: Array<{ label: string; value: string; confidence: string }>;
 }
 
-export type ReportType = "attendance" | "performance" | "course-effectiveness" | "operational-summary";
+export type ReportType = "attendance" | "performance" | "course-effectiveness" | "operational-summary" | "executive-pack";
 
 export interface ReportRecord {
   id: string;
@@ -135,6 +167,10 @@ export interface ReportRecord {
   generatedBy: string;
   scopeStudentId?: string;
   rowCount?: number;
+  format?: "pdf" | "xlsx" | "csv";
+  fileName?: string;
+  filePath?: string;
+  status?: "queued" | "processing" | "completed" | "failed";
 }
 
 export interface StorageAdapter {

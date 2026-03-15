@@ -11,12 +11,17 @@ test("admin end-to-end journey", async ({ page }) => {
   await page.goto("/admin/register-inmate");
   await expect(page).toHaveURL(/\/admin\/register-inmate/);
 
-  await page.getByLabel("Full Name").fill("Journey Test Inmate");
+  await page.getByLabel("Prisoner's Name").fill("Journey Test Inmate");
+  await page.getByLabel("Warrant Name").fill("Remand Warrant");
   await page.getByLabel("Date of Birth").fill("1993-08-15");
-  await page.getByLabel("Prison ID").fill("GTE-44556");
+  await page.getByLabel("Warrant Serial Number").fill("WR-2026-44556");
+  await page.getByLabel("Station").fill("Nsawam Medium Security Prison");
+  await page.getByLabel("Block Name").fill("Block J");
+  await page.getByLabel("Cell Number").fill("J-05");
+  await page.getByLabel("Offense").fill("Stealing");
+  await page.getByLabel("Sentence").fill("18 months imprisonment");
   await page.getByLabel("Educational Background").fill("Senior High");
   await page.getByLabel("Skill Interests (comma separated)").fill("IT, Carpentry");
-  await page.getByLabel("Block or Unit Assignment").fill("Block J");
   await page.getByTestId("capture-photo-btn").click();
   await page.getByTestId("capture-fingerprint-btn").click();
   await page.getByRole("button", { name: "Register Inmate" }).click();
@@ -25,13 +30,11 @@ test("admin end-to-end journey", async ({ page }) => {
   await page.getByRole("link", { name: "Open Registered Profile" }).click();
   await expect(page).toHaveURL(/\/admin\/inmates\/GP-\d+/);
 
-  await page.goto("/admin/dashboard");
-  await page.getByTestId("admin-search").fill("GP-10215");
-  await page.getByRole("link", { name: "View Profile" }).first().click();
+  await page.goto("/admin/inmates/GP-10215");
   await expect(page).toHaveURL(/\/admin\/inmates\/GP-10215/);
 
   await page.getByRole("button", { name: "Issue Certificate" }).click();
-  await expect(page.getByText("Certificate issued for Entrepreneurship Essentials.")).toBeVisible();
+  await expect(page.getByText("Certificate issued for Data Analytics.")).toBeVisible();
 
   await page.getByLabel("Portal sections").getByRole("link", { name: "Security" }).click();
   await expect(page).toHaveURL(/\/admin\/security/);

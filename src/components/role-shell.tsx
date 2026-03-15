@@ -12,25 +12,51 @@ interface RoleShellProps {
   subtitle?: string;
   userName?: string;
   currentRole?: Role;
+  hideNav?: boolean;
+  hideFlowPanel?: boolean;
   children: React.ReactNode;
 }
 
 const roleNavLinks: Record<Role, Array<{ label: string; href: string }>> = {
   admin: [
     { label: "Dashboard", href: "/admin/dashboard" },
+    { label: "Inmates", href: "/admin/inmates" },
     { label: "Register", href: "/admin/register-inmate" },
+    { label: "Lecturers", href: "/admin/lecturers" },
+    { label: "Officers", href: "/admin/officers" },
     { label: "Attendance", href: "/admin/attendance" },
     { label: "Courses", href: "/admin/courses" },
     { label: "Certificates", href: "/admin/certificates" },
     { label: "Reports", href: "/admin/reports" },
     { label: "Security", href: "/admin/security" },
+    { label: "Settings", href: "/admin/settings" },
   ],
   inmate: [
     { label: "Dashboard", href: "/inmate/dashboard" },
     { label: "Courses", href: "/inmate/courses" },
+    { label: "Assignments", href: "/inmate/assignments" },
     { label: "Certificates", href: "/inmate/certificates" },
+    { label: "Progress", href: "/inmate/progress" },
   ],
-  management: [{ label: "Dashboard", href: "/management/dashboard" }],
+  management: [
+    { label: "Dashboard", href: "/management/dashboard" },
+    { label: "Inmates", href: "/management/inmates" },
+    { label: "Analytics", href: "/management/analytics" },
+    { label: "Reports", href: "/management/reports" },
+  ],
+  lecturer: [
+    { label: "Dashboard", href: "/lecturer/dashboard" },
+    { label: "Courses", href: "/lecturer/courses" },
+    { label: "Assignments", href: "/lecturer/assignments" },
+    { label: "Grading", href: "/lecturer/grading" },
+    { label: "Attendance", href: "/lecturer/attendance" },
+    { label: "Reports", href: "/lecturer/reports" },
+  ],
+  clocking_officer: [
+    { label: "Check-In", href: "/clockin/checkin" },
+    { label: "Sessions", href: "/clockin/sessions" },
+    { label: "Clock-Out", href: "/clockin/checkout" },
+  ],
 };
 
 const flowActionsByRole: Record<Role, Array<{ label: string; href: string }>> = {
@@ -46,7 +72,16 @@ const flowActionsByRole: Record<Role, Array<{ label: string; href: string }>> = 
   ],
   management: [
     { label: "Next Action: Refresh Analytics View", href: "/management/dashboard" },
-    { label: "Next Action: Switch to Admin Sign-In", href: "/admin-login?next=%2Fadmin%2Fdashboard" },
+    { label: "Next Action: Review Inmate Profiles", href: "/management/inmates" },
+    { label: "Next Action: Open Management Reports", href: "/management/reports" },
+  ],
+  lecturer: [
+    { label: "Next Action: Upload Course Content", href: "/lecturer/courses" },
+    { label: "Next Action: Grade Pending Submissions", href: "/lecturer/grading" },
+  ],
+  clocking_officer: [
+    { label: "Next Action: Start Check-In Workflow", href: "/clockin/checkin" },
+    { label: "Next Action: Review Active Sessions", href: "/clockin/sessions" },
   ],
 };
 
@@ -54,16 +89,20 @@ function roleFromPath(pathname: string): Role | null {
   if (pathname.startsWith("/admin")) return "admin";
   if (pathname.startsWith("/inmate")) return "inmate";
   if (pathname.startsWith("/management")) return "management";
+  if (pathname.startsWith("/lecturer")) return "lecturer";
+  if (pathname.startsWith("/clockin")) return "clocking_officer";
   return null;
 }
 
 function roleLabel(role: Role): string {
   if (role === "admin") return "Admin";
   if (role === "inmate") return "Inmate";
-  return "Management";
+  if (role === "management") return "Management";
+  if (role === "lecturer") return "Lecturer";
+  return "Clocking Officer";
 }
 
-export function RoleShell({ title, subtitle, userName, currentRole, children }: RoleShellProps) {
+export function RoleShell({ title, subtitle, userName, currentRole, hideNav = false, hideFlowPanel = false, children }: RoleShellProps) {
   const pathname = usePathname();
   const { session, signOut, switchRole } = useAppShell();
 
@@ -84,19 +123,20 @@ export function RoleShell({ title, subtitle, userName, currentRole, children }: 
     [pathname],
   );
   const activeSection = navLinks.find((link) => isNavActive(link.href))?.label ?? "Overview";
+  const resolvedSubtitle = activeRole === "admin" ? "Admin Workspace" : subtitle;
 
   return (
     <div className="portal-root">
       <TopNav
         title={title}
-        subtitle={subtitle}
+        subtitle={resolvedSubtitle}
         userName={displayName}
         activeRole={activeRole}
-        onSignOut={() => signOut("/landing")}
+        onSignOut={() => signOut()}
         onSwitchRole={switchRole}
       />
-      {navLinks.length > 0 ? (
-        <nav className="role-nav" aria-label="Portal sections">
+      {!hideNav && navLinks.length > 0 ? (
+        <nav className={activeRole === "admin" ? "role-nav role-nav-admin" : "role-nav"} aria-label="Portal sections">
           {navLinks.map((link) => (
             <Link
               key={link.href}
@@ -115,7 +155,7 @@ export function RoleShell({ title, subtitle, userName, currentRole, children }: 
         </section>
       ) : null}
       <main className="portal-content">{children}</main>
-      {flowActions.length > 0 ? (
+      {!hideFlowPanel && flowActions.length > 0 ? (
         <section className="flow-panel">
           <p className="flow-panel-title">Suggested Next Actions</p>
           <div className="flow-links">

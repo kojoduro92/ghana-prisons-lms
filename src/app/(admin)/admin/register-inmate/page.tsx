@@ -2,12 +2,16 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useId, useRef, useState } from "react";
 import { RoleShell } from "@/components/role-shell";
 import { addAuditEvent, addOrUpdateInmate } from "@/lib/portal-state";
 import { appMeta } from "@/lib/seed-data";
 import { isStrictBiometricMode } from "@/lib/biometric-policy";
-import { resolveHardwareBiometricAdapter, runHardwareBiometricChallenge } from "@/lib/hardware-biometric-adapter";
+import {
+  resolveHardwareBiometricAdapter,
+  runHardwareBiometricChallenge,
+  type HardwareBiometricAdapter,
+} from "@/lib/hardware-biometric-adapter";
 import { formatDateTime } from "@/lib/format";
 import type { InmateProfile } from "@/types/domain";
 
@@ -16,40 +20,70 @@ function generateStudentId(): string {
   return `GP-${randomSuffix}`;
 }
 
-function generatePrisonId(): string {
+function generateWarrantSerialNumber(): string {
   const randomSuffix = Math.floor(10000 + Math.random() * 90000);
-  return `GTE-${randomSuffix}`;
+  return `WR-${new Date().getFullYear()}-${randomSuffix}`;
+}
+
+function suffixFromSeed(seed: string): string {
+  let hash = 0;
+  for (const char of seed) {
+    hash = (hash * 31 + char.charCodeAt(0)) % 90000;
+  }
+  return String(10000 + hash).padStart(5, "0");
 }
 
 export default function RegisterInmatePage() {
+  const stableSeed = suffixFromSeed(useId());
   const [fullName, setFullName] = useState("");
+  const [warrantName, setWarrantName] = useState("Remand Warrant");
   const [dateOfBirth, setDateOfBirth] = useState("");
-  const [prisonId, setPrisonId] = useState(generatePrisonId);
-  const [prisonIdManualOverride, setPrisonIdManualOverride] = useState(false);
+  const [warrantSerialNumber, setWarrantSerialNumber] = useState(() => `WR-${new Date().getFullYear()}-${stableSeed}`);
+  const [warrantSerialManualOverride, setWarrantSerialManualOverride] = useState(false);
   const [gender, setGender] = useState<InmateProfile["gender"]>("Male");
+  const [station, setStation] = useState("Nsawam Medium Security Prison");
+  const [blockName, setBlockName] = useState("");
+  const [cellNumber, setCellNumber] = useState("");
+  const [offense, setOffense] = useState("");
+  const [sentence, setSentence] = useState("");
   const [educationBackground, setEducationBackground] = useState("");
   const [skillInterests, setSkillInterests] = useState("");
-  const [blockAssignment, setBlockAssignment] = useState("");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [latestRegisteredId, setLatestRegisteredId] = useState<string | null>(null);
-  const [generatedStudentId, setGeneratedStudentId] = useState(generateStudentId);
+  const [generatedStudentId, setGeneratedStudentId] = useState(() => `GP-${stableSeed}`);
   const [photoCapturedAt, setPhotoCapturedAt] = useState<string | null>(null);
   const [fingerprintCapturedAt, setFingerprintCapturedAt] = useState<string | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [captureNotice, setCaptureNotice] = useState<string | null>(null);
   const [photoCameraActive, setPhotoCameraActive] = useState(false);
+  const [photoVideoReady, setPhotoVideoReady] = useState(false);
   const [photoCameraError, setPhotoCameraError] = useState<string | null>(null);
   const [capturedPhotoDataUrl, setCapturedPhotoDataUrl] = useState<string | null>(null);
   const [fingerprintBusy, setFingerprintBusy] = useState(false);
   const [biometricCredentialId, setBiometricCredentialId] = useState<string | null>(null);
+  const [hardwareBiometricAdapter, setHardwareBiometricAdapter] = useState<HardwareBiometricAdapter>(() =>
+    resolveHardwareBiometricAdapter("webauthn-device"),
+  );
+  const [deviceBiometricSupported, setDeviceBiometricSupported] = useState(false);
 
   const photoVideoRef = useRef<HTMLVideoElement | null>(null);
   const photoStreamRef = useRef<MediaStream | null>(null);
   const strictBiometricMode = isStrictBiometricMode();
-  const hardwareBiometricAdapter = resolveHardwareBiometricAdapter();
-  const deviceBiometricSupported = hardwareBiometricAdapter.isSupported();
   const defaultPassword = "Prison1234";
   const biometricsReady = Boolean(photoCapturedAt && fingerprintCapturedAt);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      const resolvedAdapter = resolveHardwareBiometricAdapter();
+      setHardwareBiometricAdapter(resolvedAdapter);
+      setDeviceBiometricSupported(resolvedAdapter.isSupported());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const stopPhotoCamera = useCallback(() => {
     if (photoStreamRef.current) {
@@ -64,6 +98,7 @@ export default function RegisterInmatePage() {
     }
 
     setPhotoCameraActive(false);
+    setPhotoVideoReady(false);
   }, []);
 
   useEffect(() => {
@@ -71,6 +106,24 @@ export default function RegisterInmatePage() {
       stopPhotoCamera();
     };
   }, [stopPhotoCamera]);
+
+  function hasLivePhotoFrame(): boolean {
+    const video = photoVideoRef.current;
+    return Boolean(video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0);
+  }
+
+  async function attachPhotoStreamToVideo(stream: MediaStream): Promise<boolean> {
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      const video = photoVideoRef.current;
+      if (video) {
+        video.srcObject = stream;
+        await video.play().catch(() => undefined);
+        return true;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    }
+    return false;
+  }
 
   async function startPhotoCamera(): Promise<void> {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -88,17 +141,28 @@ export default function RegisterInmatePage() {
 
       stopPhotoCamera();
       photoStreamRef.current = stream;
-      if (photoVideoRef.current) {
-        photoVideoRef.current.srcObject = stream;
-        await photoVideoRef.current.play().catch(() => undefined);
-      }
-
+      setPhotoVideoReady(false);
       setPhotoCameraActive(true);
       setPhotoCameraError(null);
       setCaptureError(null);
       setCaptureNotice("Camera is active. Align face and capture.");
+      const attached = await attachPhotoStreamToVideo(stream);
+      if (!attached) {
+        stopPhotoCamera();
+        setPhotoCameraError("Camera connected, but preview element was not ready. Retry Start Camera.");
+        return;
+      }
+      window.setTimeout(() => {
+        if (hasLivePhotoFrame()) {
+          setPhotoVideoReady(true);
+          setPhotoCameraError(null);
+        } else {
+          setPhotoCameraError("Camera connected, but no live frame is available yet. Check permissions and retry.");
+        }
+      }, 250);
     } catch {
       setPhotoCameraActive(false);
+      setPhotoVideoReady(false);
       setPhotoCameraError("Camera permission denied or unavailable. Fallback capture is available.");
     }
   }
@@ -132,13 +196,18 @@ export default function RegisterInmatePage() {
   function resetFormForNextEntry(): void {
     stopPhotoCamera();
     setFullName("");
+    setWarrantName("Remand Warrant");
     setDateOfBirth("");
-    setPrisonId(generatePrisonId());
-    setPrisonIdManualOverride(false);
+    setWarrantSerialNumber(generateWarrantSerialNumber());
+    setWarrantSerialManualOverride(false);
     setGender("Male");
+    setStation("Nsawam Medium Security Prison");
+    setBlockName("");
+    setCellNumber("");
+    setOffense("");
+    setSentence("");
     setEducationBackground("");
     setSkillInterests("");
-    setBlockAssignment("");
     setGeneratedStudentId(generateStudentId());
     setPhotoCapturedAt(null);
     setFingerprintCapturedAt(null);
@@ -154,12 +223,12 @@ export default function RegisterInmatePage() {
   function capturePhoto(): void {
     const now = new Date().toISOString();
 
-    if (strictBiometricMode && (!photoCameraActive || !photoVideoRef.current || photoVideoRef.current.videoWidth <= 0)) {
+    if (strictBiometricMode && !hasLivePhotoFrame()) {
       setCaptureError("Strict biometric mode requires a live camera capture.");
       return;
     }
 
-    if (photoCameraActive && photoVideoRef.current && photoVideoRef.current.videoWidth > 0) {
+    if (hasLivePhotoFrame() && photoVideoRef.current) {
       const canvas = document.createElement("canvas");
       canvas.width = photoVideoRef.current.videoWidth;
       canvas.height = photoVideoRef.current.videoHeight;
@@ -227,18 +296,44 @@ export default function RegisterInmatePage() {
     const profile: InmateProfile = {
       id: generatedStudentId,
       fullName: fullName.trim(),
-      prisonNumber: prisonId.trim(),
+      warrantName: warrantName.trim(),
+      warrantSerialNumber: warrantSerialNumber.trim(),
+      prisonNumber: warrantSerialNumber.trim(),
       dateOfBirth,
       gender,
+      station: station.trim(),
+      blockName: blockName.trim(),
+      cellNumber: cellNumber.trim(),
+      offense: offense.trim(),
+      sentence: sentence.trim(),
       educationBackground: educationBackground.trim() || "Not specified",
       skillInterests: skillInterests
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean),
-      blockAssignment: blockAssignment.trim() || "TBD",
+      blockAssignment: blockName.trim() || "TBD",
       biometricStatus: "Enrolled",
-      assignedPrison: "Nsawam",
+      assignedPrison: station.trim() || "Unassigned",
     };
+
+    try {
+      const inmateResponse = await fetch("/api/v1/inmates", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(profile),
+      });
+
+      if (!inmateResponse.ok) {
+        const payload = (await inmateResponse.json().catch(() => null)) as { error?: { message?: string } } | null;
+        throw new Error(payload?.error?.message ?? "Unable to persist inmate record.");
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to persist inmate record.";
+      setCaptureNotice(`${message} Continuing with local prototype registration only.`);
+      setCaptureError(null);
+    }
 
     try {
       const response = await fetch("/api/biometric/enrollments", {
@@ -249,7 +344,7 @@ export default function RegisterInmatePage() {
         body: JSON.stringify({
           studentId: generatedStudentId,
           fullName: profile.fullName,
-          prisonNumber: profile.prisonNumber,
+          prisonNumber: profile.warrantSerialNumber,
           faceCapturedAt: photoCapturedAt,
           fingerprintCapturedAt,
           strictMode: strictBiometricMode,
@@ -265,8 +360,8 @@ export default function RegisterInmatePage() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to persist biometric enrollment.";
-      setCaptureError(message);
-      return;
+      setCaptureNotice(`${message} Continuing with local prototype enrollment only.`);
+      setCaptureError(null);
     }
 
     addOrUpdateInmate(profile);
@@ -275,7 +370,7 @@ export default function RegisterInmatePage() {
       actor: "Admin Officer",
       result: "success",
       target: profile.id,
-      details: `Prison Number: ${profile.prisonNumber} | Biometrics: face+fingerprint`,
+      details: `Warrant Serial Number: ${profile.warrantSerialNumber} | Biometrics: face+fingerprint`,
     });
     setLatestRegisteredId(profile.id);
     setSuccessMessage(`Inmate ${profile.fullName} registered with ${profile.id}. Credentials and biometrics enrolled.`);
@@ -290,8 +385,12 @@ export default function RegisterInmatePage() {
         <form className="grid-2" onSubmit={handleSubmit} data-testid="register-form">
           <div style={{ display: "grid", gap: 10 }}>
             <label>
-              Full Name
+              Prisoner&apos;s Name
               <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+            </label>
+            <label>
+              Warrant Name
+              <input className="input" value={warrantName} onChange={(e) => setWarrantName(e.target.value)} required />
             </label>
             <label>
               Date of Birth
@@ -304,13 +403,13 @@ export default function RegisterInmatePage() {
               />
             </label>
             <label>
-              Prison ID
+              Warrant Serial Number
               <input
                 className="input"
-                value={prisonId}
+                value={warrantSerialNumber}
                 onChange={(e) => {
-                  setPrisonId(e.target.value);
-                  setPrisonIdManualOverride(true);
+                  setWarrantSerialNumber(e.target.value);
+                  setWarrantSerialManualOverride(true);
                 }}
                 required
               />
@@ -319,13 +418,13 @@ export default function RegisterInmatePage() {
                   type="button"
                   className="button-soft"
                   onClick={() => {
-                    setPrisonId(generatePrisonId());
-                    setPrisonIdManualOverride(false);
+                    setWarrantSerialNumber(generateWarrantSerialNumber());
+                    setWarrantSerialManualOverride(false);
                   }}
                 >
                   Auto Generate
                 </button>
-                {prisonIdManualOverride ? (
+                {warrantSerialManualOverride ? (
                   <span className="status-neutral">Manual override active</span>
                 ) : (
                   <span className="quick-info">Auto-generated, editable</span>
@@ -341,6 +440,26 @@ export default function RegisterInmatePage() {
               </select>
             </label>
             <label>
+              Station
+              <input className="input" value={station} onChange={(e) => setStation(e.target.value)} required />
+            </label>
+            <label>
+              Block Name
+              <input className="input" value={blockName} onChange={(e) => setBlockName(e.target.value)} required />
+            </label>
+            <label>
+              Cell Number
+              <input className="input" value={cellNumber} onChange={(e) => setCellNumber(e.target.value)} required />
+            </label>
+            <label>
+              Offense
+              <input className="input" value={offense} onChange={(e) => setOffense(e.target.value)} required />
+            </label>
+            <label>
+              Sentence
+              <input className="input" value={sentence} onChange={(e) => setSentence(e.target.value)} required />
+            </label>
+            <label>
               Educational Background
               <input
                 className="input"
@@ -352,20 +471,25 @@ export default function RegisterInmatePage() {
               Skill Interests (comma separated)
               <input className="input" value={skillInterests} onChange={(e) => setSkillInterests(e.target.value)} />
             </label>
-            <label>
-              Block or Unit Assignment
-              <input className="input" value={blockAssignment} onChange={(e) => setBlockAssignment(e.target.value)} />
-            </label>
           </div>
 
           <div style={{ display: "grid", gap: 10 }}>
             <article className="panel biometric-card">
               <h3>Capture Photo</h3>
-              <div className={`biometric-preview biometric-preview-face ${photoCapturedAt ? "biometric-preview-ready" : ""}`}>
+              <div
+                className={`biometric-preview biometric-preview-face biometric-preview-square ${photoCapturedAt ? "biometric-preview-ready" : ""}`}
+              >
                 {capturedPhotoDataUrl ? (
                   <div className="biometric-preview-snapshot" style={{ backgroundImage: `url(${capturedPhotoDataUrl})` }} />
                 ) : photoCameraActive ? (
-                  <video ref={photoVideoRef} className="biometric-preview-video" autoPlay muted playsInline />
+                  <video
+                    ref={photoVideoRef}
+                    className="biometric-preview-video"
+                    autoPlay
+                    muted
+                    playsInline
+                    onLoadedMetadata={() => setPhotoVideoReady(true)}
+                  />
                 ) : (
                   <Image
                     src="/assets/education/hero-learning.jpg"
@@ -380,6 +504,10 @@ export default function RegisterInmatePage() {
               <div className="inline-row" style={{ marginTop: 8 }}>
                 {photoCapturedAt ? (
                   <span className="status-ok">{`Captured ${formatDateTime(photoCapturedAt)}`}</span>
+                ) : photoCameraActive ? (
+                  <span className={photoVideoReady ? "status-ok" : "status-neutral"}>
+                    {photoVideoReady ? "Camera preview ready" : "Opening camera stream..."}
+                  </span>
                 ) : (
                   <span className="quick-info">Awaiting facial image capture.</span>
                 )}
@@ -422,6 +550,9 @@ export default function RegisterInmatePage() {
                   Strict mode: live camera capture required.
                 </p>
               ) : null}
+              <p className="quick-info" style={{ margin: "6px 0 0" }}>
+                The camera preview is fixed to a square frame so the full face remains visible during capture.
+              </p>
             </article>
 
             <article className="panel biometric-card">

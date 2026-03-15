@@ -1,34 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ProgressBar } from "@/components/progress-bar";
 import { RoleShell } from "@/components/role-shell";
-import { useAppShell } from "@/lib/app-shell";
 import {
-  addAuditEvent,
   getCertificatesForStudent,
   getCoursesState,
   getEnrollmentsForStudent,
   getInmatesState,
   getReportsState,
-  issueCertificate,
 } from "@/lib/portal-state";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { appMeta } from "@/lib/seed-data";
 
-export default function InmateProfilePage() {
+export default function ManagementInmateProfilePage() {
   const params = useParams<{ studentId: string }>();
   const studentId = decodeURIComponent(params.studentId);
-  const { setSelectedInmateId } = useAppShell();
 
   const inmates = useMemo(() => getInmatesState(), []);
   const [reportHistory] = useState(getReportsState);
   const [courses] = useState(getCoursesState);
   const [enrollments] = useState(() => getEnrollmentsForStudent(studentId));
-  const [certificates, setCertificates] = useState(() => getCertificatesForStudent(studentId));
-  const [notice, setNotice] = useState<string | null>(null);
+  const [certificates] = useState(() => getCertificatesForStudent(studentId));
 
   const inmate = inmates.find((entry) => entry.id === studentId);
   const visibleReports = reportHistory.filter(
@@ -39,38 +34,9 @@ export default function InmateProfilePage() {
     ? Math.round(enrollments.reduce((sum, entry) => sum + entry.progressPercent, 0) / enrollments.length)
     : 0;
 
-  useEffect(() => {
-    setSelectedInmateId(studentId);
-  }, [setSelectedInmateId, studentId]);
-
-  function handleIssueCertificate(courseId: string): void {
-    if (!inmate) return;
-
-    const next = issueCertificate({
-      studentId,
-      courseId,
-      issuedBy: "Admin Officer",
-      note: `Issued from inmate profile ${inmate.fullName}`,
-    });
-
-    const updated = next.filter((item) => item.studentId === studentId);
-    setCertificates(updated);
-
-    const courseTitle = courses.find((item) => item.id === courseId)?.title ?? courseId;
-    setNotice(`Certificate issued for ${courseTitle}.`);
-
-    addAuditEvent({
-      action: "certificate-issued",
-      actor: "Admin Officer",
-      result: "success",
-      target: `${studentId}:${courseId}`,
-      details: courseTitle,
-    });
-  }
-
   if (!inmate) {
     return (
-      <RoleShell title={appMeta.name} subtitle="Individual Inmate Profile" userName="Admin Officer">
+      <RoleShell title={appMeta.name} subtitle="Management - Inmate Profile" userName="Command Staff">
         <section className="panel">
           <h1>Inmate not found</h1>
           <p className="quick-info">No stored inmate record matched ID: {studentId}</p>
@@ -80,7 +46,7 @@ export default function InmateProfilePage() {
   }
 
   return (
-    <RoleShell title={appMeta.name} subtitle="Individual Inmate Profile" userName="Admin Officer">
+    <RoleShell title={appMeta.name} subtitle="Management - Inmate Profile" userName="Command Staff">
       <section className="panel grid-2">
         <div>
           <h1 style={{ marginBottom: 6 }}>{inmate.fullName}</h1>
@@ -114,9 +80,6 @@ export default function InmateProfilePage() {
               <strong>Gender:</strong> {inmate.gender}
             </p>
             <p style={{ margin: "8px 0 0" }}>
-              <strong>Biometric Status:</strong> {inmate.biometricStatus}
-            </p>
-            <p style={{ margin: "8px 0 0" }}>
               <strong>Education:</strong> {inmate.educationBackground}
             </p>
             <p style={{ margin: "8px 0 0" }}>
@@ -148,14 +111,11 @@ export default function InmateProfilePage() {
             </div>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <Link href={`/admin/reports?type=performance&studentId=${inmate.id}`} className="button-primary">
+            <Link href={`/management/reports?type=performance&studentId=${inmate.id}`} className="button-primary">
               Progress Report
             </Link>
-            <Link href={`/admin/reports?type=attendance&studentId=${inmate.id}`} className="button-soft">
+            <Link href={`/management/reports?type=attendance&studentId=${inmate.id}`} className="button-soft">
               Attendance Export
-            </Link>
-            <Link href="/admin/reports?type=operational-summary" className="button-soft">
-              Manage Records
             </Link>
           </div>
           <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
@@ -181,12 +141,9 @@ export default function InmateProfilePage() {
           <span className="quick-info">Certificates issued: {certificates.length}</span>
         </div>
 
-        {notice ? <p className="status-ok">{notice}</p> : null}
-
         {enrollments.map((enrollment) => {
           const course = courses.find((entry) => entry.id === enrollment.courseId);
           const isCertified = certificates.some((item) => item.courseId === enrollment.courseId);
-          const canIssue = enrollment.progressPercent >= 80 && !isCertified;
 
           return (
             <article key={enrollment.courseId} className="panel" style={{ padding: 12, marginBottom: 10 }}>
@@ -199,18 +156,9 @@ export default function InmateProfilePage() {
                 <span className="quick-info">
                   Status: {enrollment.status} | Progress: {enrollment.progressPercent}%
                 </span>
-                {isCertified ? (
-                  <span className="status-ok">Certificate Issued</span>
-                ) : (
-                  <button
-                    type="button"
-                    className={canIssue ? "button-primary" : "button-soft"}
-                    disabled={!canIssue}
-                    onClick={() => handleIssueCertificate(enrollment.courseId)}
-                  >
-                    {canIssue ? "Issue Certificate" : "Pending Completion"}
-                  </button>
-                )}
+                <span className={isCertified ? "status-ok" : "status-neutral"}>
+                  {isCertified ? "Certificate Issued" : "In Progress"}
+                </span>
               </div>
             </article>
           );

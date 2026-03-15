@@ -79,6 +79,29 @@ function normalizeCourse(course: Course): Course {
   };
 }
 
+function normalizeInmateProfile(inmate: InmateProfile): InmateProfile {
+  const warrantSerialNumber = inmate.warrantSerialNumber?.trim() || inmate.prisonNumber?.trim() || inmate.id;
+  const station = inmate.station?.trim() || inmate.assignedPrison?.trim() || "Unassigned";
+  const blockName = inmate.blockName?.trim() || inmate.blockAssignment?.trim() || "TBD";
+
+  return {
+    ...inmate,
+    warrantName: inmate.warrantName?.trim() || "Not recorded",
+    warrantSerialNumber,
+    prisonNumber: inmate.prisonNumber?.trim() || warrantSerialNumber,
+    station,
+    blockName,
+    cellNumber: inmate.cellNumber?.trim() || "Not assigned",
+    offense: inmate.offense?.trim() || "Not recorded",
+    sentence: inmate.sentence?.trim() || "Not recorded",
+    educationBackground: inmate.educationBackground?.trim() || "Not specified",
+    skillInterests: Array.isArray(inmate.skillInterests) ? inmate.skillInterests.filter(Boolean) : [],
+    blockAssignment: blockName,
+    biometricStatus: inmate.biometricStatus ?? "Pending",
+    assignedPrison: station,
+  };
+}
+
 function buildSequentialId(prefix: string, ids: string[]): string {
   const max = ids.reduce((currentMax, id) => {
     const value = Number(id.replace(`${prefix}-`, ""));
@@ -147,11 +170,14 @@ export function getInmatesState(): InmateProfile[] {
   const stored = browserStorage.loadState<InmateProfile[]>(STORAGE_KEYS.inmates);
 
   if (stored && stored.length > 0) {
-    return stored;
+    const normalized = stored.map(normalizeInmateProfile);
+    browserStorage.saveState(STORAGE_KEYS.inmates, normalized);
+    return normalized;
   }
 
-  browserStorage.saveState(STORAGE_KEYS.inmates, seededInmates);
-  return seededInmates;
+  const normalizedSeeds = seededInmates.map(normalizeInmateProfile);
+  browserStorage.saveState(STORAGE_KEYS.inmates, normalizedSeeds);
+  return normalizedSeeds;
 }
 
 export function saveInmatesState(nextInmates: InmateProfile[]): void {
@@ -160,8 +186,9 @@ export function saveInmatesState(nextInmates: InmateProfile[]): void {
 
 export function addOrUpdateInmate(nextInmate: InmateProfile): InmateProfile[] {
   const current = getInmatesState();
-  const withoutDuplicate = current.filter((item) => item.id !== nextInmate.id);
-  const next = [nextInmate, ...withoutDuplicate];
+  const normalized = normalizeInmateProfile(nextInmate);
+  const withoutDuplicate = current.filter((item) => item.id !== normalized.id);
+  const next = [normalized, ...withoutDuplicate];
 
   saveInmatesState(next);
   return next;
