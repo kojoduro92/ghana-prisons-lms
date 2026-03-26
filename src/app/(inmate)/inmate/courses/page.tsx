@@ -23,7 +23,7 @@ export default function InmateCoursesPage() {
   const [courses] = useState(getCoursesState);
   const [enrollments, setEnrollments] = useState(() => getEnrollmentsForStudent(studentId));
   const [notice, setNotice] = useState<string | null>(null);
-  const availableCourses = useMemo(
+  const activeCourses = useMemo(
     () => courses.filter((course) => (course.status ?? "active") === "active"),
     [courses],
   );
@@ -57,6 +57,14 @@ export default function InmateCoursesPage() {
       .sort((left, right) => new Date(right.lastActivityAt ?? "").getTime() - new Date(left.lastActivityAt ?? "").getTime())
       .slice(0, 4);
   }, [enrollments]);
+  const enrolledCourses = useMemo(
+    () => activeCourses.filter((course) => enrolledCourseIds.has(course.id)),
+    [activeCourses, enrolledCourseIds],
+  );
+  const availableToEnroll = useMemo(
+    () => activeCourses.filter((course) => !enrolledCourseIds.has(course.id)),
+    [activeCourses, enrolledCourseIds],
+  );
 
   function refreshStudentEnrollments(next: ReturnType<typeof getEnrollmentsForStudent> | ReturnType<typeof enrollStudentInCourse>) {
     setEnrollments(next.filter((entry) => entry.studentId === studentId));
@@ -129,6 +137,70 @@ export default function InmateCoursesPage() {
     });
   }
 
+  function renderCourseCard(course: (typeof activeCourses)[number]) {
+    const enrollment = enrollmentByCourse.get(course.id);
+    const isEnrolled = enrolledCourseIds.has(course.id);
+    const isCompleted = enrollment?.status === "Completed";
+
+    return (
+      <article key={course.id} className="panel" style={{ padding: 12 }}>
+        <CourseCard
+          title={course.title}
+          subtitle={course.category}
+          progress={enrollment?.progressPercent ?? 0}
+          imageSrc={course.thumbnail}
+        />
+        <div className="course-meta-grid" style={{ marginTop: 10 }}>
+          <span className="metric-pill">{`Lessons: ${enrollment?.lessonsCompleted ?? 0}`}</span>
+          <span className="metric-pill">{`Time: ${enrollment?.timeSpentMinutes ?? 0} min`}</span>
+          <span className="metric-pill">{`Assessments: ${enrollment?.assessmentsTaken ?? 0}`}</span>
+          <span className="metric-pill">{`Latest Score: ${
+            typeof enrollment?.latestAssessmentScore === "number" ? `${enrollment.latestAssessmentScore}%` : "-"
+          }`}</span>
+        </div>
+        <div className="inline-row" style={{ marginTop: 10 }}>
+          <span className="quick-info">{`${course.instructor} | ${course.level ?? "Beginner"} | ${
+            course.durationHours ?? 0
+          } hrs`}</span>
+          <div className="course-actions">
+            <Link
+              href={`/inmate/courses/${course.id}`}
+              className="button-soft"
+              data-testid={`open-course-page-${course.id}`}
+            >
+              Open Course Page
+            </Link>
+            <button
+              type="button"
+              className={isEnrolled ? "button-soft" : "button-primary"}
+              disabled={isEnrolled}
+              onClick={() => handleEnroll(course.id)}
+            >
+              {isEnrolled ? "Enrolled" : "Enroll"}
+            </button>
+            <button
+              type="button"
+              className="button-soft"
+              disabled={!isEnrolled || isCompleted}
+              onClick={() => handleStudy(course.id)}
+            >
+              Continue Lesson
+            </button>
+            <button
+              type="button"
+              className="button-soft"
+              disabled={!isEnrolled}
+              onClick={() => handleAssessment(course.id)}
+            >
+              Take Assessment
+            </button>
+          </div>
+        </div>
+        {course.summary ? <p className="quick-info" style={{ marginTop: 8 }}>{course.summary}</p> : null}
+      </article>
+    );
+  }
+
   return (
     <RoleShell title={appMeta.name} subtitle="My Courses" userName={actor}>
       <section className="panel inline-row">
@@ -188,74 +260,33 @@ export default function InmateCoursesPage() {
       </section>
 
       <section className="panel">
-        <h3 style={{ marginBottom: 12 }}>Available Courses</h3>
+        <div className="inline-row" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginBottom: 0 }}>My Enrolled Courses</h3>
+          <span className="quick-info">{enrolledCourses.length} enrolled</span>
+        </div>
         <div className="grid-4">
-          {availableCourses.map((course) => {
-            const enrollment = enrollmentByCourse.get(course.id);
-            const isEnrolled = enrolledCourseIds.has(course.id);
-            const isCompleted = enrollment?.status === "Completed";
-            return (
-              <article key={course.id} className="panel" style={{ padding: 12 }}>
-                <CourseCard
-                  title={course.title}
-                  subtitle={course.category}
-                  progress={enrollment?.progressPercent ?? 0}
-                  imageSrc={course.thumbnail}
-                />
-                <div className="course-meta-grid" style={{ marginTop: 10 }}>
-                  <span className="metric-pill">{`Lessons: ${enrollment?.lessonsCompleted ?? 0}`}</span>
-                  <span className="metric-pill">{`Time: ${enrollment?.timeSpentMinutes ?? 0} min`}</span>
-                  <span className="metric-pill">{`Assessments: ${enrollment?.assessmentsTaken ?? 0}`}</span>
-                  <span className="metric-pill">{`Latest Score: ${
-                    typeof enrollment?.latestAssessmentScore === "number" ? `${enrollment.latestAssessmentScore}%` : "-"
-                  }`}</span>
-                </div>
-                <div className="inline-row" style={{ marginTop: 10 }}>
-                  <span className="quick-info">{`${course.instructor} | ${course.level ?? "Beginner"} | ${
-                    course.durationHours ?? 0
-                  } hrs`}</span>
-                  <div className="course-actions">
-                    <Link
-                      href={`/inmate/courses/${course.id}`}
-                      className="button-soft"
-                      data-testid={`open-course-page-${course.id}`}
-                    >
-                      Open Course Page
-                    </Link>
-                    <button
-                      type="button"
-                      className={isEnrolled ? "button-soft" : "button-primary"}
-                      disabled={isEnrolled}
-                      onClick={() => handleEnroll(course.id)}
-                    >
-                      {isEnrolled ? "Enrolled" : "Enroll"}
-                    </button>
-                    <button
-                      type="button"
-                      className="button-soft"
-                      disabled={!isEnrolled || isCompleted}
-                      onClick={() => handleStudy(course.id)}
-                    >
-                      Continue Lesson
-                    </button>
-                    <button
-                      type="button"
-                      className="button-soft"
-                      disabled={!isEnrolled}
-                      onClick={() => handleAssessment(course.id)}
-                    >
-                      Take Assessment
-                    </button>
-                  </div>
-                </div>
-                {course.summary ? <p className="quick-info" style={{ marginTop: 8 }}>{course.summary}</p> : null}
-              </article>
-            );
-          })}
-          {availableCourses.length === 0 ? (
+          {enrolledCourses.map(renderCourseCard)}
+          {enrolledCourses.length === 0 ? (
             <article className="panel" style={{ padding: 12 }}>
               <p className="quick-info" style={{ margin: 0 }}>
-                No active courses are currently published. Please contact the admin team.
+                You are not enrolled in any course yet. Use the available catalog below to join one.
+              </p>
+            </article>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="inline-row" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginBottom: 0 }}>Available to Enroll</h3>
+          <span className="quick-info">{availableToEnroll.length} active course options</span>
+        </div>
+        <div className="grid-4">
+          {availableToEnroll.map(renderCourseCard)}
+          {availableToEnroll.length === 0 ? (
+            <article className="panel" style={{ padding: 12 }}>
+              <p className="quick-info" style={{ margin: 0 }}>
+                No additional active courses are currently published. Please contact the admin team.
               </p>
             </article>
           ) : null}

@@ -1,19 +1,19 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { AUTH_COOKIE_NAME, parseSerializedSession } from "@/lib/auth";
+import { loginPathForRole, roleHomePath } from "@/lib/auth";
+import { getServerSession } from "@/lib/server-session";
 import type { Role, UserSession } from "@/types/domain";
 
 export async function requireRoleSession(expectedRole: Role, nextPath: string): Promise<UserSession> {
-  const cookieStore = await cookies();
-  const cookieValue = cookieStore.get(AUTH_COOKIE_NAME)?.value;
-  const session = parseSerializedSession(cookieValue);
+  const session = await getServerSession();
+  const loginPath = loginPathForRole(expectedRole);
 
   if (!session) {
-    redirect(`/admin-login?next=${encodeURIComponent(nextPath)}`);
+    redirect(`${loginPath}?next=${encodeURIComponent(nextPath)}`);
   }
 
   if (session.role !== expectedRole) {
-    redirect(`/admin-login?next=${encodeURIComponent(nextPath)}&reason=role`);
+    const fallback = roleHomePath(session.role);
+    redirect(`${loginPath}?next=${encodeURIComponent(nextPath)}&reason=role&fallback=${encodeURIComponent(fallback)}`);
   }
 
   return session;

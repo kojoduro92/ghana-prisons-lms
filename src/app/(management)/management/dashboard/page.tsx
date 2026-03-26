@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { BrandLogo } from "@/components/brand-logo";
+import { signOutTo } from "@/lib/auth-client";
 import { formatDateTime } from "@/lib/format";
 import {
   addAuditEvent,
@@ -161,6 +162,9 @@ export default function ManagementDashboardPage() {
           <span className="board-utility-icon">⚙</span>
           <span className="board-chip">Management</span>
           <span className="board-chip">Cifaa</span>
+          <button type="button" className="button-soft" onClick={() => signOutTo("/access")}>
+            Sign out
+          </button>
         </div>
       </header>
 

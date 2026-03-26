@@ -1,0 +1,11 @@
+studentId,type,facility,timestamp,verifiedBy
+"GP-10234","entry","Hall A - ICT Lab (Block 1)","2026-03-04T13:50:38.402Z","fingerprint"
+"GP-10234","entry","Hall A - ICT Lab (Block 1)","2026-03-04T13:49:01.386Z","fingerprint"
+"GP-10234","exit","Hall A - ICT Lab","2026-03-04T13:21:19.443Z","fingerprint"
+"GP-10234","exit","Hall A - ICT Lab","2026-03-04T13:21:18.872Z","fingerprint"
+"GP-10234","exit","Hall A - ICT Lab (Block 1)","2026-03-04T13:21:18.107Z","fingerprint"
+"GP-10234","entry","Hall A - ICT Lab (Block 1)","2026-03-04T13:12:36.178Z","fingerprint"
+"GP-10234","entry","Hall A - ICT Lab","2026-03-04T09:49:02.215Z","fingerprint"
+"GP-10234","exit","Hall A - ICT Lab","2026-03-04T09:44:59.687Z","fingerprint"
+"GP-10234","entry","Hall A - ICT Lab","2026-03-04T09:44:59.585Z","fingerprint"
+"GP-10234","entry","Hall A - ICT Lab","2026-03-04T09:44:59.370Z","fingerprint"

@@ -1,0 +1,62 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: gplp-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ghana_prisons_lms}
+      MYSQL_USER: ${MYSQL_USER:-gplp}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-gplp_pass}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/conf.d:/etc/mysql/conf.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$${MYSQL_USER} -p$${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gplp-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3010
+      DATABASE_URL: mysql://${MYSQL_USER:-gplp}:${MYSQL_PASSWORD:-gplp_pass}@mysql:3306/${MYSQL_DATABASE:-ghana_prisons_lms}
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-offline-secret}
+      GPLP_SNAPSHOT_ENCRYPTION_KEY: ${GPLP_SNAPSHOT_ENCRYPTION_KEY:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "3010:3010"
+    volumes:
+      - ./data:/app/data
+
+  backup-job:
+    image: mysql:8.4
+    container_name: gplp-backup
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-gplp}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-gplp_pass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ghana_prisons_lms}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./scripts/backup-db.sh:/backup/backup-db.sh:ro
+      - ./data/backups:/backups
+    command: ["sh", "/backup/backup-db.sh"]
+
+volumes:
+  mysql_data:

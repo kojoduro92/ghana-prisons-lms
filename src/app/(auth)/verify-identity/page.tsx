@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { roleHomePath } from "@/lib/auth";
 import { useAppShell } from "@/lib/app-shell";
@@ -23,6 +23,23 @@ import type { VerificationAttempt } from "@/types/domain";
 const facilityOptions = ["Digital Learning Lab", "Library Study Hall", "Vocational Workshop", "Language Lab"] as const;
 const deviceOptions = ["Desktop PC", "Laptop", "Tablet"] as const;
 
+function readVerificationQuery() {
+  if (typeof window === "undefined") {
+    return {
+      nextPath: null as string | null,
+      reason: null as string | null,
+      forcedLegacyVerification: false,
+    };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  return {
+    nextPath: params.get("next"),
+    reason: params.get("reason"),
+    forcedLegacyVerification: params.get("verify") === "1",
+  };
+}
+
 function detectCurrentDeviceType(): (typeof deviceOptions)[number] {
   if (typeof window === "undefined" || typeof navigator === "undefined") {
     return "Desktop PC";
@@ -43,6 +60,7 @@ function detectCurrentDeviceType(): (typeof deviceOptions)[number] {
 }
 
 export default function VerificationPage() {
+  const verificationQuery = readVerificationQuery();
   const router = useRouter();
   const { session, setActiveSession } = useAppShell();
   const [method, setMethod] = useState<VerificationAttempt["method"]>("fingerprint");
@@ -71,16 +89,9 @@ export default function VerificationPage() {
   const hardwareBiometricAdapter = resolveHardwareBiometricAdapter();
   const deviceBiometricSupported = hardwareBiometricAdapter.isSupported();
 
-  const [nextPath, setNextPath] = useState<string | null>(null);
-  const [reason, setReason] = useState<string | null>(null);
-  const [forcedLegacyVerification, setForcedLegacyVerification] = useState(false);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setNextPath(params.get("next"));
-    setReason(params.get("reason"));
-    setForcedLegacyVerification(params.get("verify") === "1");
-  }, []);
+  const [nextPath] = useState<string | null>(verificationQuery.nextPath);
+  const [reason] = useState<string | null>(verificationQuery.reason);
+  const [forcedLegacyVerification] = useState(verificationQuery.forcedLegacyVerification);
 
   const stopFaceCamera = useCallback(() => {
     if (faceStreamRef.current) {
@@ -124,7 +135,7 @@ export default function VerificationPage() {
   }
 
   async function attachFaceStreamToVideo(stream: MediaStream): Promise<boolean> {
-    for (let attempt = 0; attempt < 24; attempt += 1) {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
       const video = faceVideoRef.current;
       if (video) {
         video.srcObject = stream;
@@ -147,6 +158,7 @@ export default function VerificationPage() {
       setFaceCameraError(null);
       setFaceVideoReady(false);
       setFaceSnapshotDataUrl(null);
+      setFaceCapturedAt(null);
       setFaceCaptureSource(null);
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -197,7 +209,7 @@ export default function VerificationPage() {
           return;
         }
 
-        if (Date.now() - probeStartMs > 4000) {
+        if (Date.now() - probeStartMs > 6000) {
           window.clearInterval(readinessProbe);
           setFaceCameraStarting(false);
           if (!strictBiometricMode) {
@@ -521,9 +533,7 @@ export default function VerificationPage() {
                     faceCapturedAt ? "biometric-preview-ready" : ""
                   }`}
                 >
-                  {faceSnapshotDataUrl ? (
-                    <div className="biometric-preview-snapshot" style={{ backgroundImage: `url(${faceSnapshotDataUrl})` }} />
-                  ) : faceCameraActive ? (
+                  {faceCameraActive ? (
                     <>
                       <video
                         ref={faceVideoRef}
@@ -550,6 +560,8 @@ export default function VerificationPage() {
                         </div>
                       ) : null}
                     </>
+                  ) : faceSnapshotDataUrl ? (
+                    <div className="biometric-preview-snapshot" style={{ backgroundImage: `url(${faceSnapshotDataUrl})` }} />
                   ) : (
                     <Image
                       src="/assets/education/sample-face-avatar.svg"

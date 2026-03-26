@@ -197,7 +197,7 @@ export default function LandingPage() {
                   </div>
                   <div className="inmate-landing-v2-course-footer">
                     <Link href={`/landing/courses/${course.id}`} className="button-soft">
-                      View Details
+                      Open Course
                     </Link>
                     <Link
                       href={`/auth/inmate-login?next=${encodeURIComponent(`/inmate/courses/${course.id}`)}`}

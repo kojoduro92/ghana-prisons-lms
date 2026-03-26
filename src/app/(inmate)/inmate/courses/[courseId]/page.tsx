@@ -2,10 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { RoleShell } from "@/components/role-shell";
+import { listPrototypeCourseMaterials } from "@/lib/browser-prototype-store";
 import { useAppShell } from "@/lib/app-shell";
+import { fetchApi } from "@/lib/client-api";
+import { formatDateTime } from "@/lib/format";
 import {
   addAuditEvent,
   enrollStudentInCourse,
@@ -15,6 +18,18 @@ import {
   updateEnrollmentProgress,
 } from "@/lib/portal-state";
 import { appMeta } from "@/lib/seed-data";
+import type { CourseMaterialRecord } from "@/types/domain";
+
+function mergeMaterials(primary: CourseMaterialRecord[], fallback: CourseMaterialRecord[]) {
+  const seen = new Set<string>();
+  const next: CourseMaterialRecord[] = [];
+  for (const item of [...primary, ...fallback]) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    next.push(item);
+  }
+  return next;
+}
 
 export default function InmateCourseDetailPage() {
   const params = useParams<{ courseId: string }>();
@@ -26,6 +41,7 @@ export default function InmateCourseDetailPage() {
   const [courses] = useState(getCoursesState);
   const [enrollments, setEnrollments] = useState(() => getEnrollmentsForStudent(studentId));
   const [notice, setNotice] = useState<string | null>(null);
+  const [materials, setMaterials] = useState<CourseMaterialRecord[]>([]);
 
   const course = useMemo(() => courses.find((item) => item.id === courseId), [courseId, courses]);
   const curriculum = useMemo(() => (course ? getCourseBlueprint(course.id) : null), [course]);
@@ -35,6 +51,16 @@ export default function InmateCourseDetailPage() {
   );
   const isEnrolled = Boolean(enrollment);
   const isCompleted = enrollment?.status === "Completed";
+
+  useEffect(() => {
+    if (!course) {
+      return;
+    }
+
+    void fetchApi<{ materials: CourseMaterialRecord[] }>(`/api/v1/course-materials?courseId=${encodeURIComponent(course.id)}`)
+      .then((data) => setMaterials(mergeMaterials(data.materials, listPrototypeCourseMaterials(course.id))))
+      .catch(() => setMaterials(listPrototypeCourseMaterials(course.id)));
+  }, [course]);
 
   function refreshEnrollments(
     next: ReturnType<typeof getEnrollmentsForStudent> | ReturnType<typeof enrollStudentInCourse>,
@@ -218,6 +244,36 @@ export default function InmateCourseDetailPage() {
           </div>
         ) : (
           <p className="quick-info">Curriculum setup is in progress for this course.</p>
+        )}
+      </section>
+
+      <section className="panel">
+        <div className="inline-row" style={{ marginBottom: 12 }}>
+          <h2 className="section-title" style={{ marginBottom: 0 }}>
+            Course Materials
+          </h2>
+          <span className="quick-info">{materials.length} file(s)</span>
+        </div>
+        {materials.length ? (
+          <div className="builder-list">
+            {materials.map((material) => (
+              <article key={material.id} className="builder-module">
+                <div className="inline-row">
+                  <div>
+                    <h3 style={{ marginBottom: 4 }}>{material.title}</h3>
+                    <p className="quick-info" style={{ margin: 0 }}>
+                      {material.fileName} | {material.kind} | Uploaded {formatDateTime(material.createdAt)}
+                    </p>
+                  </div>
+                  <a className="button-soft" href={material.downloadUrl ?? `/api/v1/course-materials/${material.id}/download`} download={material.fileName}>
+                    Download
+                  </a>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="quick-info">No course materials have been uploaded for this course yet.</p>
         )}
       </section>
     </RoleShell>

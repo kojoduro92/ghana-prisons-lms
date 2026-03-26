@@ -1,8 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { CourseCard } from "@/components/course-card";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { ProgressBar } from "@/components/progress-bar";
 import { ProgressDonut } from "@/components/progress-donut";
 import { RoleShell } from "@/components/role-shell";
@@ -24,6 +24,36 @@ import {
 import { appMeta } from "@/lib/seed-data";
 import type { AttendanceEvent } from "@/types/domain";
 
+const COURSE_IMAGE_FALLBACK_BY_CATEGORY: Record<string, string> = {
+  "IT & Digital Skills": "/assets/education/course-computer.jpg",
+  Languages: "/assets/education/course-english.jpg",
+  Management: "/assets/education/course-management.jpg",
+  "Technical & Vocational": "/assets/education/course-carpentry.jpg",
+  "Sales & Marketing": "/assets/education/course-marketing.jpg",
+};
+
+const COURSE_IMAGE_FALLBACK_POOL = [
+  "/assets/education/course-computer.jpg",
+  "/assets/education/course-english.jpg",
+  "/assets/education/course-entrepreneurship.jpg",
+  "/assets/education/course-carpentry.jpg",
+  "/assets/education/course-management.jpg",
+  "/assets/education/course-marketing.jpg",
+];
+
+function resolveCourseImage(imageSrc: string | undefined, category: string | undefined, courseId: string): string {
+  if (imageSrc && imageSrc.trim().length > 0) {
+    return imageSrc;
+  }
+
+  if (category && COURSE_IMAGE_FALLBACK_BY_CATEGORY[category]) {
+    return COURSE_IMAGE_FALLBACK_BY_CATEGORY[category];
+  }
+
+  const hash = Array.from(courseId).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return COURSE_IMAGE_FALLBACK_POOL[hash % COURSE_IMAGE_FALLBACK_POOL.length];
+}
+
 function buildWeeklyActivity(events: AttendanceEvent[], days = 6): number[] {
   const points: number[] = [];
   const now = new Date();
@@ -43,19 +73,30 @@ export default function InmateDashboardPage() {
   const { session } = useAppShell();
   const studentId = session?.studentId ?? "GP-10234";
   const userName = session?.displayName ?? "John Mensah";
+  const isHydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const [courses] = useState(getCoursesState);
   const [enrollments] = useState(() => getEnrollmentsForStudent(studentId));
   const [certificates] = useState(() => getCertificatesForStudent(studentId));
+  const enrolledCourseIds = useMemo(() => new Set(enrollments.map((entry) => entry.courseId)), [enrollments]);
 
   const activeCourses = enrollments.map((item) => {
     const course = courses.find((entry) => entry.id === item.courseId);
+    const category = course?.category ?? "General";
+
     return {
       id: item.courseId,
       title: course?.title ?? item.courseId,
-      subtitle: course?.category ?? "General",
+      subtitle: category,
+      summary: course?.summary ?? "Continue your assigned module to maintain learning progress.",
+      instructor: course?.instructor ?? "Assigned Lecturer",
+      durationHours: course?.durationHours ?? 16,
       progress: item.progressPercent,
-      thumbnail: course?.thumbnail,
+      imageSrc: resolveCourseImage(course?.thumbnail, category, item.courseId),
     };
   });
 
@@ -63,6 +104,22 @@ export default function InmateDashboardPage() {
     activeCourses.length > 0
       ? Math.round(activeCourses.reduce((sum, item) => sum + item.progress, 0) / activeCourses.length)
       : 0;
+  const availableToEnroll = useMemo(
+    () =>
+      courses
+        .filter((course) => (course.status ?? "active") === "active" && !enrolledCourseIds.has(course.id))
+        .slice(0, 3)
+        .map((course) => ({
+          id: course.id,
+          title: course.title,
+          subtitle: course.category,
+          summary: course.summary ?? "Structured learning pathway available offline.",
+          instructor: course.instructor,
+          durationHours: course.durationHours ?? 16,
+          imageSrc: resolveCourseImage(course.thumbnail, course.category, course.id),
+        })),
+    [courses, enrolledCourseIds],
+  );
 
   const [verifiedBy, setVerifiedBy] = useState<AttendanceEvent["verifiedBy"]>("fingerprint");
   const [events, setEvents] = useState(() => getAttendanceEventsForStudent(studentId));
@@ -154,9 +211,22 @@ export default function InmateDashboardPage() {
     refreshEvents();
   }
 
+  if (!isHydrated) {
+    return (
+      <RoleShell title={appMeta.name} subtitle="Inmate Dashboard" userName={userName}>
+        <section className="panel">
+          <h2 className="section-title" style={{ marginBottom: 8 }}>
+            Loading Dashboard
+          </h2>
+          <p className="quick-info">Preparing your latest courses, attendance, and progress data...</p>
+        </section>
+      </RoleShell>
+    );
+  }
+
   return (
     <RoleShell title={appMeta.name} subtitle="Inmate Dashboard" userName={userName}>
-      <section className="panel grid-2">
+      <section className="panel grid-2" id="overview">
         <div>
           <h1 style={{ marginBottom: 6 }}>Welcome Back, {userName}</h1>
           <p className="quick-info">Student ID: {studentId}</p>
@@ -188,7 +258,34 @@ export default function InmateDashboardPage() {
         </div>
       </section>
 
-      <section className="panel grid-2">
+      <section className="panel">
+        <div className="inline-row" style={{ marginBottom: 10 }}>
+          <h2 className="section-title" style={{ marginBottom: 0 }}>
+            Quick Navigation
+          </h2>
+          <span className="quick-info">Jump directly to the part you need</span>
+        </div>
+        <div className="inmate-dashboard-nav-grid">
+          <a href="#continue-learning" className="inmate-dashboard-nav-link">
+            <strong>Continue Learning</strong>
+            <span>{activeCourses.length} active course{activeCourses.length === 1 ? "" : "s"}</span>
+          </a>
+          <a href="#attendance-operations" className="inmate-dashboard-nav-link">
+            <strong>Attendance Operations</strong>
+            <span>{openEntry ? "Session active now" : "No active session"}</span>
+          </a>
+          <a href="#learning-insights" className="inmate-dashboard-nav-link">
+            <strong>Learning Insights</strong>
+            <span>{completedLessons} lessons completed</span>
+          </a>
+          <a href="#goals" className="inmate-dashboard-nav-link">
+            <strong>Goals & Achievements</strong>
+            <span>{certificates.length} certificates earned</span>
+          </a>
+        </div>
+      </section>
+
+      <section className="panel grid-2" id="attendance-operations">
         <div>
           <h2 className="section-title">Attendance Operations</h2>
           <p className="quick-info" style={{ marginBottom: 10 }}>
@@ -266,33 +363,67 @@ export default function InmateDashboardPage() {
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="continue-learning">
         <div className="inline-row" style={{ marginBottom: 12 }}>
           <h2 className="section-title" style={{ marginBottom: 0 }}>
             Continue Learning
           </h2>
           <div className="inline-row">
             <Link href="/inmate/courses" className="button-soft">
-              Browse Courses
+              My Courses
+            </Link>
+            <Link href="/inmate/assignments" className="button-soft">
+              Assignments
+            </Link>
+            <Link href="/inmate/progress" className="button-soft">
+              Progress
             </Link>
             <Link href="/inmate/certificates" className="button-soft">
-              View Certificates
+              Certificates
             </Link>
           </div>
         </div>
-        <div className="grid-4">
+
+        <div className="inmate-dashboard-course-grid">
           {activeCourses.map((course) => (
-            <article key={course.id} className="panel" style={{ padding: 12 }}>
-              <CourseCard title={course.title} subtitle={course.subtitle} progress={course.progress} imageSrc={course.thumbnail} />
-              <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
-                <Link href={`/inmate/courses/${course.id}`} className="button-soft">
-                  Open Course Page
-                </Link>
+            <article key={course.id} className="inmate-dashboard-course-card">
+              <div className="inmate-dashboard-course-image-wrap">
+                <Image
+                  src={course.imageSrc}
+                  alt={course.title}
+                  fill
+                  sizes="(max-width: 1200px) 100vw, 33vw"
+                  className="inmate-dashboard-course-image"
+                />
+                <div className="inmate-dashboard-course-badges">
+                  <span>{course.subtitle}</span>
+                  <strong>{course.progress}% complete</strong>
+                </div>
+              </div>
+
+              <div className="inmate-dashboard-course-body">
+                <h3>{course.title}</h3>
+                <p>{course.summary}</p>
+                <div className="inmate-dashboard-course-meta">
+                  <span>{course.instructor}</span>
+                  <span>{course.durationHours} hrs</span>
+                </div>
+                <div className="progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={course.progress}>
+                  <span className="progress-fill" style={{ width: `${Math.min(100, Math.max(0, course.progress))}%` }} />
+                </div>
+                <div className="inmate-dashboard-course-actions">
+                  <Link href={`/inmate/courses/${course.id}`} className="button-primary">
+                    Continue Course
+                  </Link>
+                  <Link href="/inmate/courses" className="button-soft">
+                    Open Catalog
+                  </Link>
+                </div>
               </div>
             </article>
           ))}
           {activeCourses.length === 0 ? (
-            <article className="panel" style={{ padding: 12 }}>
+            <article className="panel inmate-dashboard-course-empty" style={{ padding: 12 }}>
               <p className="quick-info" style={{ margin: 0 }}>
                 No courses enrolled yet. Open Browse Courses to start learning.
               </p>
@@ -301,7 +432,63 @@ export default function InmateDashboardPage() {
         </div>
       </section>
 
-      <section className="grid-2">
+      <section className="panel">
+        <div className="inline-row" style={{ marginBottom: 12 }}>
+          <h2 className="section-title" style={{ marginBottom: 0 }}>
+            Available to Enroll
+          </h2>
+          <div className="inline-row">
+            <span className="quick-info">New and other active courses you have not joined yet</span>
+            <Link href="/inmate/courses" className="button-soft">
+              View All Courses
+            </Link>
+          </div>
+        </div>
+        <div className="inmate-dashboard-course-grid">
+          {availableToEnroll.map((course) => (
+            <article key={course.id} className="inmate-dashboard-course-card">
+              <div className="inmate-dashboard-course-image-wrap">
+                <Image
+                  src={course.imageSrc}
+                  alt={course.title}
+                  fill
+                  sizes="(max-width: 1200px) 100vw, 33vw"
+                  className="inmate-dashboard-course-image"
+                />
+                <div className="inmate-dashboard-course-badges">
+                  <span>{course.subtitle}</span>
+                  <strong>{course.durationHours} hrs</strong>
+                </div>
+              </div>
+              <div className="inmate-dashboard-course-body">
+                <h3>{course.title}</h3>
+                <p>{course.summary}</p>
+                <div className="inmate-dashboard-course-meta">
+                  <span>{course.instructor}</span>
+                  <span>Ready for enrollment</span>
+                </div>
+                <div className="inmate-dashboard-course-actions">
+                  <Link href={`/inmate/courses/${course.id}`} className="button-primary">
+                    View Course
+                  </Link>
+                  <Link href="/inmate/courses" className="button-soft">
+                    Open Catalog
+                  </Link>
+                </div>
+              </div>
+            </article>
+          ))}
+          {availableToEnroll.length === 0 ? (
+            <article className="panel inmate-dashboard-course-empty" style={{ padding: 12 }}>
+              <p className="quick-info" style={{ margin: 0 }}>
+                You are already enrolled in all active courses currently available.
+              </p>
+            </article>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="grid-2" id="learning-insights">
         <ChartCard title="Weekly Learning Activity">
           <div className="mini-bars" style={{ minHeight: 130 }}>
             {weeklyActivity.map((point, idx) => (
@@ -319,6 +506,7 @@ export default function InmateDashboardPage() {
         </ChartCard>
 
         <ChartCard title="Goals & Achievements">
+          <div id="goals" />
           {goals.map((goal) => (
             <ProgressBar key={goal.label} label={goal.label} current={goal.current} total={goal.total} />
           ))}

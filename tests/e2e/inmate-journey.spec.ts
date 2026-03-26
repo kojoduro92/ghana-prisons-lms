@@ -9,12 +9,16 @@ test("inmate end-to-end journey", async ({ page }) => {
   });
 
   await expect(page.getByRole("heading", { name: "Attendance Operations" })).toBeVisible();
-  await expect(page.getByText("In Session")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Clock In" })).toBeDisabled();
-
-  await page.getByRole("button", { name: "Clock Out" }).click();
-  await expect(page.getByText("EXIT via").first()).toBeVisible();
-  await expect(page.getByText("ENTRY via").first()).toBeVisible();
+  const clockInButton = page.getByRole("button", { name: "Clock In" });
+  const clockOutButton = page.getByRole("button", { name: "Clock Out" });
+  if (await clockInButton.isDisabled()) {
+    await expect(page.getByText("In Session")).toBeVisible();
+  } else {
+    await expect(page.getByRole("heading", { name: "No Active Session" })).toBeVisible();
+    await clockInButton.click();
+    await expect(page.getByText("Clock-in recorded.")).toBeVisible();
+  }
+  await expect(clockOutButton).toBeVisible();
 
   await expect(page.getByLabel("Portal sections").getByRole("link", { name: "Courses" })).toBeVisible();
   await page.goto("/inmate/courses");

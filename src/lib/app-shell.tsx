@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { roleHomePath } from "@/lib/auth";
+import { loginPathForRole, roleHomePath, signOutRedirectPath } from "@/lib/auth";
 import { clearSession, getSessionFromBrowser, persistSession } from "@/lib/auth-client";
 import { STORAGE_KEYS, browserStorage } from "@/lib/storage";
 import type { Role, UserSession } from "@/types/domain";
@@ -20,10 +20,20 @@ const AppShellContext = createContext<AppShellContextValue | null>(null);
 
 export function AppShellProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [session, setSession] = useState<UserSession | null>(() => getSessionFromBrowser());
-  const [selectedInmateId, setSelectedInmateIdState] = useState(
-    () => browserStorage.loadState<string>(STORAGE_KEYS.selectedInmate) ?? "",
-  );
+  const [session, setSession] = useState<UserSession | null>(null);
+  const [selectedInmateId, setSelectedInmateIdState] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setSession(getSessionFromBrowser());
+      setSelectedInmateIdState(browserStorage.loadState<string>(STORAGE_KEYS.selectedInmate) ?? "");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const setActiveSession = useCallback((nextSession: UserSession) => {
     persistSession(nextSession);
@@ -31,14 +41,18 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(
-    (redirectTo = "/landing") => {
+    (redirectTo?: string) => {
+      const currentRole = session?.role ?? getSessionFromBrowser()?.role ?? null;
+      void fetch("/api/v1/auth/logout", {
+        method: "POST",
+      }).catch(() => null);
       clearSession();
       browserStorage.clearState(STORAGE_KEYS.selectedInmate);
       setSession(null);
       setSelectedInmateIdState("");
-      router.push(redirectTo);
+      router.push(redirectTo ?? signOutRedirectPath(currentRole));
     },
-    [router],
+    [router, session],
   );
 
   const switchRole = useCallback(
@@ -47,7 +61,7 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
       browserStorage.clearState(STORAGE_KEYS.selectedInmate);
       setSession(null);
       setSelectedInmateIdState("");
-      router.push(`/admin-login?next=${encodeURIComponent(roleHomePath(role))}`);
+      router.push(`${loginPathForRole(role)}?next=${encodeURIComponent(roleHomePath(role))}`);
     },
     [router],
   );

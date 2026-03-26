@@ -5,8 +5,11 @@ import {
   demoCredentials,
   findDemoCredential,
   hasValidFacilityAccess,
+  loginPathForPath,
+  loginPathForRole,
   parseSerializedSession,
   serializeSession,
+  signOutRedirectPath,
 } from "@/lib/auth";
 
 describe("auth helpers", () => {
@@ -40,12 +43,52 @@ describe("auth helpers", () => {
     expect(canAccessPath("admin", "/inmate/dashboard")).toBe(false);
   });
 
+  it("maps roles and protected paths to the correct login interfaces", () => {
+    expect(loginPathForRole("admin")).toBe("/auth/login");
+    expect(loginPathForRole("inmate")).toBe("/auth/inmate-login");
+    expect(loginPathForRole("clocking_officer")).toBe("/auth/clockin-login");
+
+    expect(loginPathForPath("/inmate/dashboard")).toBe("/auth/inmate-login");
+    expect(loginPathForPath("/clockin/checkin")).toBe("/auth/clockin-login");
+    expect(loginPathForPath("/admin/dashboard")).toBe("/auth/login");
+  });
+
+  it("maps sign-out redirects by role", () => {
+    expect(signOutRedirectPath("admin")).toBe("/access");
+    expect(signOutRedirectPath("management")).toBe("/access");
+    expect(signOutRedirectPath("lecturer")).toBe("/access");
+    expect(signOutRedirectPath("clocking_officer")).toBe("/access");
+    expect(signOutRedirectPath("inmate")).toBe("/landing");
+    expect(signOutRedirectPath(null)).toBe("/access");
+  });
+
   it("requires facility access grant for inmate session", () => {
-    const session = createSessionFromCredential(demoCredentials[2]);
+    const inmateCredential = demoCredentials.find((item) => item.role === "inmate");
+    expect(inmateCredential).toBeTruthy();
+    const session = createSessionFromCredential(inmateCredential!);
     expect(hasValidFacilityAccess(session)).toBe(false);
 
     const now = new Date().toISOString();
     expect(hasValidFacilityAccess({ ...session, facilityEntryGrantedAt: now })).toBe(true);
+  });
+
+  it("accepts new facilityAccess payload contract for inmates", () => {
+    const inmateCredential = demoCredentials.find((item) => item.role === "inmate");
+    expect(inmateCredential).toBeTruthy();
+    const session = createSessionFromCredential(inmateCredential!);
+    const now = Date.now();
+    expect(
+      hasValidFacilityAccess({
+        ...session,
+        facilityAccess: {
+          grantedAt: new Date(now - 2 * 60 * 1000).toISOString(),
+          method: "fingerprint",
+          location: "Hall A",
+          deviceId: "DEV-001",
+          expiresAt: new Date(now + 15 * 60 * 1000).toISOString(),
+        },
+      }),
+    ).toBe(true);
   });
 
   it("does not require facility access grant for admin and management sessions", () => {

@@ -1,19 +1,16 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { AUTH_COOKIE_NAME, parseSerializedSession } from "@/lib/auth";
 import {
   createRestoreApproval,
   getRequiredRestorePhrase,
   verifyRestoreApproval,
 } from "@/lib/restore-approval";
+import { getServerSession } from "@/lib/server-session";
 import { getStateSnapshot } from "@/lib/state-snapshot-repository";
 
 export const runtime = "nodejs";
 
 async function authorizeAdminOrManagement() {
-  const store = await cookies();
-  const raw = store.get(AUTH_COOKIE_NAME)?.value;
-  const session = parseSerializedSession(raw);
+  const session = await getServerSession();
   if (!session) return null;
   if (session.role !== "admin" && session.role !== "management") return null;
   return session;

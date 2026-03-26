@@ -14,6 +14,8 @@ interface TopNavProps {
 }
 
 export function TopNav({ title, subtitle, userName, activeRole, onSignOut, onSwitchRole }: TopNavProps) {
+  const inmateOnlyMode = activeRole === "inmate";
+
   return (
     <header className="top-nav">
       <div className="top-nav-left">
@@ -28,35 +30,53 @@ export function TopNav({ title, subtitle, userName, activeRole, onSignOut, onSwi
         <Link href="/landing" className="chip-button chip-link">
           Portal Home
         </Link>
-        <div className="top-nav-role-switch">
-          <button
-            type="button"
-            className={activeRole === "admin" ? "chip-button chip-button-active" : "chip-button"}
-            onClick={() => {
-              if (activeRole !== "admin") onSwitchRole("admin");
-            }}
-          >
-            Admin
-          </button>
-          <button
-            type="button"
-            className={activeRole === "inmate" ? "chip-button chip-button-active" : "chip-button"}
-            onClick={() => {
-              if (activeRole !== "inmate") onSwitchRole("inmate");
-            }}
-          >
-            Inmate
-          </button>
-          <button
-            type="button"
-            className={activeRole === "management" ? "chip-button chip-button-active" : "chip-button"}
-            onClick={() => {
-              if (activeRole !== "management") onSwitchRole("management");
-            }}
-          >
-            Management
-          </button>
-        </div>
+        {!inmateOnlyMode ? (
+          <div className="top-nav-role-switch">
+            <button
+              type="button"
+              className={activeRole === "admin" ? "chip-button chip-button-active" : "chip-button"}
+              onClick={() => {
+                if (activeRole !== "admin") onSwitchRole("admin");
+              }}
+            >
+              Admin
+            </button>
+            <button
+              type="button"
+              className="chip-button"
+              onClick={() => onSwitchRole("inmate")}
+            >
+              Inmate
+            </button>
+            <button
+              type="button"
+              className={activeRole === "management" ? "chip-button chip-button-active" : "chip-button"}
+              onClick={() => {
+                if (activeRole !== "management") onSwitchRole("management");
+              }}
+            >
+              Management
+            </button>
+            <button
+              type="button"
+              className={activeRole === "lecturer" ? "chip-button chip-button-active" : "chip-button"}
+              onClick={() => {
+                if (activeRole !== "lecturer") onSwitchRole("lecturer");
+              }}
+            >
+              Lecturer
+            </button>
+            <button
+              type="button"
+              className={activeRole === "clocking_officer" ? "chip-button chip-button-active" : "chip-button"}
+              onClick={() => {
+                if (activeRole !== "clocking_officer") onSwitchRole("clocking_officer");
+              }}
+            >
+              Officer
+            </button>
+          </div>
+        ) : null}
         <span className="user-chip">{userName ?? "Signed In"}</span>
         <button type="button" className="chip-button" onClick={onSignOut}>
           Sign out

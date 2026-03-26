@@ -113,7 +113,7 @@ export default function RegisterInmatePage() {
   }
 
   async function attachPhotoStreamToVideo(stream: MediaStream): Promise<boolean> {
-    for (let attempt = 0; attempt < 24; attempt += 1) {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
       const video = photoVideoRef.current;
       if (video) {
         video.srcObject = stream;
@@ -146,6 +146,19 @@ export default function RegisterInmatePage() {
       setPhotoCameraError(null);
       setCaptureError(null);
       setCaptureNotice("Camera is active. Align face and capture.");
+      setCapturedPhotoDataUrl(null);
+      setPhotoCapturedAt(null);
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        track.onmute = () => {
+          setPhotoVideoReady(false);
+          setPhotoCameraError("Camera stream paused. Check privacy settings and try again.");
+        };
+        track.onended = () => {
+          setPhotoVideoReady(false);
+          setPhotoCameraActive(false);
+        };
+      }
       const attached = await attachPhotoStreamToVideo(stream);
       if (!attached) {
         stopPhotoCamera();
@@ -479,9 +492,7 @@ export default function RegisterInmatePage() {
               <div
                 className={`biometric-preview biometric-preview-face biometric-preview-square ${photoCapturedAt ? "biometric-preview-ready" : ""}`}
               >
-                {capturedPhotoDataUrl ? (
-                  <div className="biometric-preview-snapshot" style={{ backgroundImage: `url(${capturedPhotoDataUrl})` }} />
-                ) : photoCameraActive ? (
+                {photoCameraActive ? (
                   <video
                     ref={photoVideoRef}
                     className="biometric-preview-video"
@@ -490,6 +501,8 @@ export default function RegisterInmatePage() {
                     playsInline
                     onLoadedMetadata={() => setPhotoVideoReady(true)}
                   />
+                ) : capturedPhotoDataUrl ? (
+                  <div className="biometric-preview-snapshot" style={{ backgroundImage: `url(${capturedPhotoDataUrl})` }} />
                 ) : (
                   <Image
                     src="/assets/education/hero-learning.jpg"
@@ -512,7 +525,7 @@ export default function RegisterInmatePage() {
                   <span className="quick-info">Awaiting facial image capture.</span>
                 )}
                 <div className="biometric-control-row">
-                  <button type="button" className="button-soft" onClick={() => void startPhotoCamera()}>
+                  <button type="button" className="button-soft" onClick={() => void startPhotoCamera()} disabled={photoCameraActive}>
                     Start Camera
                   </button>
                   <button
